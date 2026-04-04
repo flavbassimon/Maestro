@@ -4372,5 +4372,393 @@ function weeklyRecapWithHistory(el){
   var lastCard=el.querySelector('.card:last-child');
   if(lastCard) lastCard.insertAdjacentHTML('beforeend','</div>');
 }</script>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   MAESTRO v24 — PATCH SYNCHRONISATION FIREBASE
+   Remplace les fonctions de sauvegarde pour garantir
+   que TOUTES les écritures vont sur Firebase + localStorage
+═══════════════════════════════════════════════════════════════ */
+'use strict';
+
+// ── 1. FONCTION CENTRALE ──────────────────────────────────────
+// Remplace tous les LS.saveSd() + syncToFirebase() éparpillés
+function saveStudentData(sid, d) {
+  // Sauvegarde locale immédiate
+  LS.saveSd(sid, d);
+  // Push Firebase
+  if (fbDb && fbStatus === 'ok') {
+    try {
+      var clean = JSON.parse(JSON.stringify(d, function(k, v) {
+        return v === undefined ? null : v;
+      }));
+      fbDb.ref('data/' + sid).set(clean)
+        .catch(function(e) { console.warn('[Maestro] FB write error:', e); });
+    } catch(e) { console.warn('[Maestro] saveStudentData error:', e); }
+  }
+}
+
+// ── 2. INDICATEUR VISUEL SYNC DANS TOPBAR ────────────────────
+function _setSyncDot(status) {
+  var dot = document.getElementById('tbSync');
+  if (!dot) {
+    // Créer le dot s'il n'existe pas
+    var acts = document.querySelector('.tb-acts');
+    if (acts) {
+      dot = document.createElement('div');
+      dot.id = 'tbSync';
+      dot.title = 'Statut synchronisation';
+      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0;transition:background .4s;margin-right:2px';
+      acts.insertBefore(dot, acts.firstChild);
+    }
+  }
+  if (!dot) return;
+  if (status === 'ok')   { dot.style.background = '#2dbd8f'; dot.title = 'Synchronisé ✓'; }
+  else if (status === 'err') { dot.style.background = '#f0614a'; dot.title = 'Erreur sync'; }
+  else if (status === 'busy') { dot.style.background = '#f5a623'; dot.title = 'Sync en cours...'; }
+  else { dot.style.background = '#ccc'; dot.title = 'Non connecté'; }
+}
+
+// ── 3. PATCH fbSetBar ─────────────────────────────────────────
+var _orig_fbSetBar = typeof fbSetBar === 'function' ? fbSetBar : null;
+fbSetBar = function(s) {
+  var wasOff = (typeof fbStatus !== 'undefined' && fbStatus !== 'ok');
+  if (_orig_fbSetBar) _orig_fbSetBar(s);
+  _setSyncDot(s);
+  // Reconnexion : pousser toutes les données locales vers Firebase
+  if (s === 'ok' && wasOff && typeof uid !== 'undefined' && uid) {
+    setTimeout(function() {
+      var sts = LS.sts();
+      var count = 0;
+      sts.forEach(function(st) {
+        var d = LS.sd(st.id);
+        if (d) { saveStudentData(st.id, d); count++; }
+      });
+      if (count > 0) {
+        _setSyncDot('ok');
+        console.log('[Maestro] Reconnexion: ' + count + ' élève(s) re-synchronisé(s)');
+      }
+    }, 1000);
+  }
+};
+
+// ── 4. PATCH gsStop ───────────────────────────────────────────
+var _orig_gsStop = typeof gsStop === 'function' ? gsStop : null;
+gsStop = function() {
+  // On intercepte AVANT l'appel original pour capturer les données
+  var mins = Math.floor(gsSec / 60);
+  if (mins > 0) {
+    var d = LS.sd(uid) || blank(uid);
+    var et = nowHHMM(); var st = _gsStart || '';
+    sesWrite(d, tday(), mins, st, et);
+    saveStudentData(uid, d);  // ← garanti Firebase + local
+    toast('✓ ' + mins + ' min' + (st ? ' (' + st + ' → ' + et + ')' : ''));
+    updateSpBar();
+    // Réinitialiser l'état pour éviter double-save dans l'original
+    gsSec = 0; _gsStart = null;
+    gsOn = false; clearInterval(gsT);
+    var bt = document.getElementById('gsBt');
+    if (bt) bt.textContent = 'Démarrer';
+    var gsD = document.getElementById('gsD');
+    if (gsD) gsD.textContent = '00:00:00';
+    var gsSt = document.getElementById('gsSt');
+    if (gsSt) gsSt.textContent = 'Terminé ! Bon travail 🎉';
+    if (typeof mStop === 'function') mStop();
+    return; // Ne pas appeler l'original (évite double save)
+  }
+  if (_orig_gsStop) _orig_gsStop();
+};
+
+// ── 5. PATCH addManT ──────────────────────────────────────────
+var _orig_addManT = typeof addManT === 'function' ? addManT : null;
+addManT = function() {
+  var mins = parseInt((document.getElementById('manMin') || {value: '0'}).value) || 0;
+  if (mins < 1) return;
+  if (!uid) { toast('Non connecté'); return; }
+  var dk = tday();
+  var dv = (document.getElementById('manDate') || {}).value;
+  if (dv && dv.length === 10) dk = dv;
+  var startT = ((document.getElementById('manTime') || {}).value) || '';
+  var endT = '';
+  if (startT) {
+    var pp = startT.split(':'); var d2 = new Date();
+    d2.setHours(parseInt(pp[0]), parseInt(pp[1]) + mins, 0);
+    endT = (d2.getHours()<10?'0':'')+d2.getHours()+':'+(d2.getMinutes()<10?'0':'')+d2.getMinutes();
+  }
+  var d = LS.sd(uid) || blank(uid);
+  sesWrite(d, dk, mins, startT, endT);
+  saveStudentData(uid, d);  // ← garanti Firebase + local
+  var s2 = gStats(d); var goal = d.weekGoal || 200;
+  var pct = Math.min(100, Math.round(s2.wm / goal * 100));
+  toast('✓ ' + mins + ' min · Semaine: ' + s2.wm + '/' + goal + ' min (' + pct + '%)');
+  updateSpBar();
+};
+
+// ── 6. PATCH toggleTask ───────────────────────────────────────
+var _orig_toggleTask = typeof toggleTask === 'function' ? toggleTask : null;
+toggleTask = function(i) {
+  var d = LS.sd(uid) || blank(uid);
+  var tasks = d.tasks || [];
+  var undone = tasks.filter(function(t) { return !t.done; });
+  if (!undone[i]) return;
+  undone[i].done = true;
+  d.tasksDone = (d.tasksDone || 0) + 1;
+  saveStudentData(uid, d);
+  toast('Tâche validée ! ✓');
+  var pg = document.querySelector('.pg.on');
+  if (pg) eleveDash(pg);
+};
+
+// ── 7. PATCH toggleTask2 ──────────────────────────────────────
+var _orig_toggleTask2 = typeof toggleTask2 === 'function' ? toggleTask2 : null;
+toggleTask2 = function(i) {
+  var d = LS.sd(uid) || blank(uid);
+  var tasks = d.tasks || [];
+  if (!tasks[i]) return;
+  tasks[i].done = !tasks[i].done;
+  if (tasks[i].done) d.tasksDone = (d.tasksDone || 0) + 1;
+  saveStudentData(uid, d);
+  var pg = document.querySelector('.pg.on');
+  if (pg) drawGSTasks(pg);
+};
+
+// ── 8. PATCH addProfTask ──────────────────────────────────────
+var _orig_addProfTask = typeof addProfTask === 'function' ? addProfTask : null;
+addProfTask = function() {
+  var name = (document.getElementById('taskInput').value || '').trim();
+  if (!name) return;
+  var sid = pTSid || LS.sts()[0].id;
+  var d = LS.sd(sid) || blank(sid);
+  d.tasks = d.tasks || [];
+  d.tasks.push({
+    name: name, done: false,
+    priority: document.getElementById('taskPrio').value,
+    mins: parseInt(document.getElementById('taskMins').value) || 15,
+    createdAt: Date.now()
+  });
+  saveStudentData(sid, d);
+  toast('Tâche ajoutée ✓');
+  var pg = document.querySelector('.pg.on');
+  if (pg) profTaches(pg);
+};
+
+// ── 9. PATCH delProfTask ──────────────────────────────────────
+var _orig_delProfTask = typeof delProfTask === 'function' ? delProfTask : null;
+delProfTask = function(i) {
+  var sid = pTSid || LS.sts()[0].id;
+  var d = LS.sd(sid) || blank(sid);
+  d.tasks.splice(i, 1);
+  saveStudentData(sid, d);
+  var pg = document.querySelector('.pg.on');
+  if (pg) profTaches(pg);
+};
+
+// ── 10. PATCH saveStudentGoal ─────────────────────────────────
+var _orig_saveStudentGoal = typeof saveStudentGoal === 'function' ? saveStudentGoal : null;
+saveStudentGoal = function(sid, mins) {
+  if (!mins || mins < 30 || mins > 600) { toast('Objectif invalide (30-600 min)'); return; }
+  var d = LS.sd(sid) || blank(sid);
+  d.weekGoal = mins;
+  saveStudentData(sid, d);
+  toast('Objectif : ' + mins + ' min/semaine ✓');
+  cMo();
+};
+
+// ── 11. PATCH saveAvatarConfig ────────────────────────────────
+var _orig_saveAvatarConfig = typeof saveAvatarConfig === 'function' ? saveAvatarConfig : null;
+saveAvatarConfig = function(d, cfg) {
+  d.avatarConfig = cfg;
+  saveStudentData(uid, d);
+};
+
+// ── 12. PATCH openChest ───────────────────────────────────────
+var _orig_openChest = typeof openChest === 'function' ? openChest : null;
+openChest = function(pageEl) {
+  var d = LS.sd(uid) || blank(uid);
+  var xp = getXP(d);
+  var earned = Math.floor(xp / 150);
+  var opened = d.chestsOpened || 0;
+  if (opened >= earned) { toast('Aucun coffre disponible'); return; }
+  var _unlocked = getUnlockedItems(d);
+  var _avCats = ['skins','hairs','outfits','accessories','instruments','scenes'];
+  var _avCfgKeys = {skins:'skin',hairs:'hair',outfits:'outfit',accessories:'accessory',instruments:'instrument',scenes:'scene'};
+  var _avIcos = {skins:'🎨',hairs:'💇',outfits:'👕',accessories:'✨',instruments:'🎼',scenes:'🎭'};
+  var _avPool = [];
+  _avCats.forEach(function(cat) {
+    AVATAR_ITEMS[cat].forEach(function(item) {
+      if (item.unlock === 'default') return;
+      if (_unlocked[cat].indexOf(item.id) >= 0) return;
+      var r2 = item.unlock === 'legendary' ? 'l' : item.unlock === 'rare' ? 'r' : 'c';
+      _avPool.push({ico: _avIcos[cat], txt: 'Avatar : ' + item.name, rarity: r2, unlockedItem: {cat: cat, cfgKey: _avCfgKeys[cat], id: item.id}});
+    });
+  });
+  var _classic = [
+    {ico:'🎯',txt:'Objectif +10 min',rarity:'c'},
+    {ico:'⚡',txt:'Bonus XP x2',rarity:'r'},
+    {ico:'💡',txt:'Conseil du maestro',rarity:'c'},
+    {ico:'🔥',txt:'Série protégée',rarity:'r'},
+    {ico:'🎁',txt:'Surprise légendaire',rarity:'l'}
+  ];
+  var REWARDS = (_avPool.length ? _avPool : []).concat(_classic);
+  var weights = {c:0.62, r:0.28, l:0.10};
+  var pool = [];
+  REWARDS.forEach(function(r) { if (Math.random() < weights[r.rarity]) pool.push(r); });
+  if (!pool.length) pool = REWARDS;
+  var chosen = pool[Math.floor(Math.random() * pool.length)];
+  d.chestsOpened = (d.chestsOpened || 0) + 1;
+  d.chestHistory = d.chestHistory || [];
+  var _histEntry = {ico: chosen.ico, txt: chosen.txt, rarity: chosen.rarity, ts: Date.now()};
+  if (chosen.unlockedItem) _histEntry.unlockedItem = chosen.unlockedItem;
+  d.chestHistory.push(_histEntry);
+  if (chosen.unlockedItem) {
+    var _cfg = getAvatarConfig(d);
+    _cfg[chosen.unlockedItem.cfgKey] = chosen.unlockedItem.id;
+    d.avatarConfig = _cfg;
+  }
+  saveStudentData(uid, d);  // ← garanti Firebase + local
+  confetti();
+  var RC = {c:'#5b4fcf',r:'#f5a623',l:'#f0614a'};
+  var RN = {c:'Commune',r:'Rare',l:'Légendaire'};
+  sMo('<div style="text-align:center;padding:8px 0">'
+    + '<div style="font-size:3.5rem;display:inline-block;animation:bounce .5s ease infinite alternate">' + chosen.ico + '</div>'
+    + '<div style="font-family:Lora,serif;font-size:1.3rem;font-weight:600;color:var(--text);margin:10px 0 4px">' + escHtml(chosen.txt) + '</div>'
+    + '<div style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:.72rem;font-weight:800;background:' + RC[chosen.rarity||'c'] + ';color:white;margin-bottom:16px">' + RN[chosen.rarity||'c'] + '</div>'
+    + '<div><button class="btn bp" style="justify-content:center;width:100%" id="chestOkBtn">Super !</button></div>'
+    + '</div>');
+  document.getElementById('chestOkBtn').addEventListener('click', function() {
+    cMo();
+    if (pageEl) chestsPage(pageEl);
+  });
+  toast(chosen.ico + ' ' + chosen.txt + ' !');
+};
+
+// ── 13. PATCH fbSyncNow ───────────────────────────────────────
+fbSyncNow = function() {
+  if (!fbDb || fbStatus !== 'ok') { toast('Firebase non connecté'); return; }
+  var sts = LS.sts(); var count = 0;
+  sts.forEach(function(st) {
+    var d = LS.sd(st.id);
+    if (d) { saveStudentData(st.id, d); count++; }
+  });
+  toast('✅ ' + count + ' élève' + (count > 1 ? 's' : '') + ' synchronisé' + (count > 1 ? 's' : ''));
+};
+
+// ── 14. ÉCOUTE TEMPS RÉEL — Toutes les données élèves ─────────
+// Déclenché après login une fois fbDb disponible
+function _v24_watchAllStudents() {
+  if (!fbDb) return;
+  fbDb.ref('data').on('value', function(snap) {
+    var allData = snap.val();
+    if (!allData) return;
+    Object.keys(allData).forEach(function(sid) {
+      var remote = allData[sid];
+      if (!remote) return;
+      // Vérifier que cet élève nous concerne
+      var sts = LS.sts();
+      var isMine = (role === 'eleve' && sid === uid) ||
+                   (role === 'prof' && sts.some(function(s) { return s.id === sid; }));
+      if (!isMine) return;
+      var local = LS.sd(sid);
+      var merged = mergeStudentData(local, remote);
+      LS.saveSd(sid, merged);
+      // Rafraîchir l'UI
+      if (role === 'eleve' && sid === uid) {
+        updateSpBar();
+        var pg = document.querySelector('.pg.on');
+        if (pg && typeof eleveDash === 'function' && _curIdx === 0) {
+          // Ne pas rerender entièrement pour éviter les flashs
+          // juste mettre à jour les indicateurs
+          updateSpBar();
+        }
+      }
+      if (role === 'prof') {
+        var pg2 = document.querySelector('.pg.on');
+        if (pg2 && _curIdx === 0) profClasse(pg2);
+        if (pg2 && _curIdx === 2) buildStats(pg2);
+      }
+    });
+    _setSyncDot('ok');
+  });
+  // Aussi écouter les messages
+  var sts2 = LS.sts();
+  sts2.forEach(function(st) {
+    fbDb.ref('msgs/' + st.id).on('value', function(snap) {
+      var v = snap.val();
+      if (v && Array.isArray(v)) {
+        localStorage.setItem('m8_msg_' + st.id, JSON.stringify(v));
+        // Rafraîchir la messagerie si ouverte
+        var thread = document.getElementById('msgThread');
+        if (thread) {
+          var myRole = role;
+          thread.innerHTML = renderMsgThread(v, myRole);
+          var t2 = document.getElementById('msgThread');
+          if (t2) t2.scrollTop = t2.scrollHeight;
+        }
+      }
+    });
+  });
+}
+
+// ── 15. HOOK afterLogin pour brancher l'écoute temps réel ─────
+var _orig_launch = typeof launch === 'function' ? launch : null;
+launch = function() {
+  if (_orig_launch) _orig_launch();
+  // Brancher l'écoute temps réel après que tout soit initialisé
+  setTimeout(function() {
+    if (fbDb && fbStatus === 'ok') {
+      _v24_watchAllStudents();
+    } else {
+      // Attendre la connexion
+      var checkInterval = setInterval(function() {
+        if (fbDb && fbStatus === 'ok') {
+          clearInterval(checkInterval);
+          _v24_watchAllStudents();
+        }
+      }, 1000);
+      // Timeout après 10s
+      setTimeout(function() { clearInterval(checkInterval); }, 10000);
+    }
+  }, 500);
+};
+
+// ── 16. PATCH fbSyncFromCloud : Firebase prioritaire ──────────
+var _orig_fbSyncFromCloud = typeof fbSyncFromCloud === 'function' ? fbSyncFromCloud : null;
+fbSyncFromCloud = function(callback) {
+  if (!fbDb) { if (callback) callback(); return; }
+  _setSyncDot('busy');
+  var done = 0;
+  function onDone() {
+    done++;
+    if (done >= 2) {
+      _setSyncDot('ok');
+      if (callback) callback();
+    }
+  }
+  // Auth
+  fbDb.ref('auth').once('value', function(snap) {
+    var data = snap.val();
+    if (data) {
+      if (data.users)    localStorage.setItem('m8_auth_users',    JSON.stringify(data.users));
+      if (data.requests) localStorage.setItem('m8_auth_requests', JSON.stringify(data.requests));
+    }
+    onDone();
+  }, function() { onDone(); });
+  // Données élèves — Firebase est source de vérité
+  fbDb.ref('data').once('value', function(snap) {
+    var data = snap.val();
+    if (data) {
+      Object.keys(data).forEach(function(sid) {
+        var remote = data[sid];
+        if (!remote) return;
+        var local = LS.sd(sid);
+        var merged = mergeStudentData(local, remote);
+        LS.saveSd(sid, merged);
+      });
+    }
+    onDone();
+  }, function() { onDone(); });
+};
+
+console.log('[Maestro v24] Patch synchronisation chargé ✓');
+</script>
 </body>
 </html>
