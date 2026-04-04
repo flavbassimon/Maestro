@@ -5078,6 +5078,303 @@ fbSyncFromCloud = function(callback) {
 };
 
 console.log('[Maestro v24] Patch sync Firebase chargé ✓');
-</script>  
+</script> 
+<script>
+/* ══════════════════════════════════════════════════════════════
+   MAESTRO v24b — FIX ENREGISTREMENT AUDIO iOS/Safari
+   Coller juste avant </body>, après le patch v24
+   ══════════════════════════════════════════════════════════════ */
+
+function _getBestMimeType() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  // Sur iOS/Safari, ne pas forcer de mimeType — laisser le navigateur choisir
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) return ''; // Safari choisit automatiquement (mp4/aac)
+  // Sur les autres navigateurs, préférer webm
+  if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) return 'audio/webm;codecs=opus';
+  if (MediaRecorder.isTypeSupported('audio/webm')) return 'audio/webm';
+  if (MediaRecorder.isTypeSupported('audio/mp4')) return 'audio/mp4';
+  return '';
+}
+
+function buildRecorder(el) {
+  var MAX = 300;
+  var _rec = null, _stream = null, _chunks = [], _timer = null,
+      _elapsed = 0, _blob = null, _objUrl = null;
+
+  el.innerHTML = '<div class="tcard">'
+    + '<div class="ttitle">🎙 Enregistreur</div>'
+    + '<div class="tsub">Jusqu\'à 5 min — envoie au professeur</div>'
+    + '<div class="rec-wave-wrap"><canvas id="rcWave" width="600" height="50"></canvas>'
+    + '<div id="rcTime" class="rec-time-disp">0:00</div></div>'
+    + '<div class="rec-prog-track"><div id="rcProg" class="rec-prog-fill"></div></div>'
+    + '<div style="display:flex;gap:8px;justify-content:center;margin-bottom:10px">'
+    + '<button id="rcBtn" type="button" style="padding:9px 22px;border-radius:20px;border:none;background:var(--ind);color:white;font-family:Nunito,sans-serif;font-size:.88rem;font-weight:800;cursor:pointer">⏺ Enregistrer</button>'
+    + '<button id="rcStop" type="button" style="display:none;padding:9px 18px;border-radius:20px;border:none;background:var(--corall);color:var(--coral);font-family:Nunito,sans-serif;font-size:.85rem;font-weight:800;cursor:pointer">⏹ Terminer</button>'
+    + '</div>'
+    + '<div id="rcRes" style="display:none;background:var(--indl);border-radius:10px;padding:12px;margin-bottom:8px">'
+    + '<div style="font-size:.72rem;font-weight:800;color:var(--ind);margin-bottom:8px">✓ Prêt à écouter</div>'
+    + '<audio id="rcPlayer" controls style="width:100%;margin-bottom:8px" playsinline></audio>'
+    + '<div style="display:flex;gap:6px">'
+    + '<input id="rcMsg" placeholder="Message (optionnel)..." style="flex:1;padding:6px 9px;border:1.5px solid var(--indm);border-radius:8px;font-size:.78rem;font-family:Nunito,sans-serif">'
+    + '<button id="rcSend" type="button" style="padding:7px 12px;border-radius:8px;border:none;background:var(--mint);color:white;font-family:Nunito,sans-serif;font-size:.76rem;font-weight:800;cursor:pointer;white-space:nowrap">Envoyer</button>'
+    + '</div></div>'
+    + '<button id="rcReset" type="button" style="display:none;width:100%;padding:7px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-family:Nunito,sans-serif;font-size:.73rem;cursor:pointer">🔄 Nouveau</button>'
+    + '<div id="rcStat" style="text-align:center;font-size:.7rem;color:var(--muted);margin-top:6px">Appuie pour commencer</div>'
+    + '</div>';
+
+  function stopAll() {
+    if (_timer) { clearInterval(_timer); _timer = null; }
+    if (_rec && _rec.state !== 'inactive') try { _rec.stop(); } catch(e) {}
+    if (_stream) _stream.getTracks().forEach(function(t) { try { t.stop(); } catch(e) {} });
+    _stream = null;
+  }
+
+  function drawWave(analyser) {
+    var cv = document.getElementById('rcWave'); if (!cv) return;
+    var cx = cv.getContext('2d'); if (!cx) return;
+    var buf = new Uint8Array(analyser.frequencyBinCount);
+    (function frame() {
+      if (!_rec || _rec.state === 'inactive') return;
+      requestAnimationFrame(frame);
+      analyser.getByteTimeDomainData(buf);
+      cx.fillStyle = '#080810'; cx.fillRect(0, 0, cv.width, cv.height);
+      cx.strokeStyle = '#5b4fcf'; cx.lineWidth = 2; cx.beginPath();
+      var sl = cv.width / buf.length;
+      for (var i = 0; i < buf.length; i++) {
+        var y = (buf[i] / 128 - 1) * (cv.height / 2) + cv.height / 2;
+        i ? cx.lineTo(i * sl, y) : cx.moveTo(0, y);
+      }
+      cx.stroke();
+    })();
+  }
+
+  document.getElementById('rcBtn').addEventListener('click', function() {
+    // Pause / Reprendre
+    if (_rec && _rec.state === 'recording') {
+      _rec.pause(); this.textContent = '▶ Reprendre'; return;
+    }
+    if (_rec && _rec.state === 'paused') {
+      _rec.resume(); this.textContent = '⏸ Pause'; return;
+    }
+
+    var self = this;
+    self.textContent = 'Connexion...'; self.disabled = true;
+
+    // AudioContext créé dans le tap (obligatoire iOS)
+    var actx;
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { self.textContent = '⏺ Enregistrer'; self.disabled = false; toast('Audio non disponible'); return; }
+
+    var startRec = function() {
+      navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        video: false
+      }).then(function(stream) {
+        _stream = stream; _chunks = []; _elapsed = 0;
+
+        // Waveform
+        var src = actx.createMediaStreamSource(stream);
+        var an = actx.createAnalyser(); an.fftSize = 256; src.connect(an);
+        drawWave(an);
+
+        // Créer MediaRecorder sans forcer le mimeType sur iOS
+        var mimeType = _getBestMimeType();
+        try {
+          _rec = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream);
+        } catch(e) {
+          _rec = new MediaRecorder(stream);
+        }
+
+        _rec.ondataavailable = function(e) { if (e.data && e.data.size > 0) _chunks.push(e.data); };
+        _rec.onstop = function() {
+          var usedMime = _rec.mimeType || mimeType || 'audio/webm';
+          _blob = new Blob(_chunks, { type: usedMime });
+          if (_objUrl) URL.revokeObjectURL(_objUrl);
+          _objUrl = URL.createObjectURL(_blob);
+          var pl = document.getElementById('rcPlayer');
+          if (pl) { pl.src = _objUrl; pl.load(); }
+          document.getElementById('rcRes').style.display = '';
+          document.getElementById('rcReset').style.display = '';
+          var st = document.getElementById('rcStat');
+          if (st) st.textContent = 'Durée : ' + Math.floor(_elapsed) + 's';
+          document.getElementById('rcBtn').disabled = true;
+        };
+
+        // timeslice à 250ms pour collecter les chunks régulièrement
+        _rec.start(250);
+        self.textContent = '⏸ Pause';
+        self.disabled = false;
+        document.getElementById('rcStop').style.display = '';
+        document.getElementById('rcStat').textContent = 'Enregistrement...';
+
+        _timer = setInterval(function() {
+          _elapsed++;
+          var m = Math.floor(_elapsed / 60), s = _elapsed % 60;
+          var te = document.getElementById('rcTime'); if (te) te.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+          var pr = document.getElementById('rcProg'); if (pr) pr.style.width = Math.min(100, _elapsed / MAX * 100) + '%';
+          if (_elapsed >= MAX) { stopAll(); toast('5 min atteintes'); }
+        }, 1000);
+
+      }).catch(function(e) {
+        try { actx.close(); } catch(ex) {}
+        self.textContent = '⏺ Enregistrer'; self.disabled = false;
+        toast('Micro refusé : ' + e.message);
+      });
+    };
+
+    if (actx.state === 'suspended') actx.resume().then(startRec).catch(startRec);
+    else startRec();
+  });
+
+  document.getElementById('rcStop').addEventListener('click', function() {
+    stopAll();
+    document.getElementById('rcStop').style.display = 'none';
+  });
+
+  document.getElementById('rcSend').addEventListener('click', function() {
+    if (!_blob) { toast('Rien à envoyer'); return; }
+    if (!uid) { toast('Non connecté'); return; }
+    var users = DB.users(); var me = users[uid] || {};
+    var profId = me.classId || '';
+    if (!profId) { toast('Pas de professeur associé'); return; }
+    var msgText = (document.getElementById('rcMsg') || { value: '' }).value || 'Audio';
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      sendMsg(profId, msgText, 'eleve', { type: 'audio', dataUrl: ev.target.result, duration: _elapsed });
+      toast('Envoyé au prof !');
+      document.getElementById('rcRes').style.display = 'none';
+      var st = document.getElementById('rcStat'); if (st) st.textContent = 'Envoyé !';
+    };
+    reader.readAsDataURL(_blob);
+  });
+
+  document.getElementById('rcReset').addEventListener('click', function() {
+    stopAll(); _rec = null; _chunks = []; _elapsed = 0; _blob = null;
+    if (_objUrl) { URL.revokeObjectURL(_objUrl); _objUrl = null; }
+    document.getElementById('rcRes').style.display = 'none';
+    this.style.display = 'none';
+    var rb = document.getElementById('rcBtn'); rb.textContent = '⏺ Enregistrer'; rb.disabled = false;
+    document.getElementById('rcStop').style.display = 'none';
+    document.getElementById('rcTime').textContent = '0:00';
+    document.getElementById('rcProg').style.width = '0%';
+    document.getElementById('rcStat').textContent = 'Appuie pour commencer';
+  });
+}
+
+// Fix identique pour l'enregistreur prof dans la messagerie
+function openProfRecorder(sid) {
+  var zone = document.getElementById('profRecZone');
+  if (!zone) return;
+  if (zone.style.display !== 'none') { zone.style.display = 'none'; return; }
+  zone.style.display = 'block';
+
+  var MAX = 300, _rec = null, _stream = null, _chunks = [], _timer = null,
+      _elapsed = 0, _dataUrl = null;
+  var sts2 = LS.sts(); var selSt = sts2.find(function(s) { return s.id === sid; });
+
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'background:var(--indl);border-radius:10px;padding:12px;margin-top:8px;';
+  wrap.innerHTML = '<div style="font-size:.72rem;font-weight:800;color:var(--ind);margin-bottom:8px">Audio pour ' + (selSt ? escHtml(selSt.name) : sid) + '</div>'
+    + '<div style="background:#080810;border-radius:8px;height:38px;margin-bottom:8px;overflow:hidden;position:relative">'
+    + '<canvas id="prWave" width="400" height="38" style="width:100%;height:100%"></canvas>'
+    + '<div id="prTime" style="position:absolute;top:50%;right:8px;transform:translateY(-50%);font-family:monospace;font-size:.78rem;color:white;font-weight:700">0:00</div></div>'
+    + '<div style="height:4px;background:var(--bg);border-radius:2px;margin-bottom:8px;overflow:hidden"><div id="prProg" style="height:100%;width:0%;background:var(--coral);border-radius:2px"></div></div>'
+    + '<div style="display:flex;gap:6px;margin-bottom:8px">'
+    + '<button id="prStart" type="button" style="flex:1;padding:7px;border-radius:8px;border:none;background:var(--ind);color:white;font-size:.73rem;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">⏺ Démarrer</button>'
+    + '<button id="prStop" type="button" style="display:none;flex:1;padding:7px;border-radius:8px;border:none;background:var(--corall);color:var(--coral);font-size:.73rem;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">⏹ Terminer</button>'
+    + '<button id="prClose" type="button" style="padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:.73rem;cursor:pointer">✕</button>'
+    + '</div>'
+    + '<div id="prRes" style="display:none"><audio id="prPlayer" controls style="width:100%;height:30px;margin-bottom:6px"></audio>'
+    + '<button id="prSend" type="button" style="width:100%;padding:8px;border-radius:8px;border:none;background:var(--mint);color:white;font-size:.76rem;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">Envoyer à l\'élève 📨</button></div>'
+    + '<div id="prStat" style="font-size:.63rem;color:var(--muted);text-align:center">Appuie pour commencer</div>';
+  zone.innerHTML = ''; zone.appendChild(wrap);
+
+  function doStop2() {
+    if (_timer) { clearInterval(_timer); _timer = null; }
+    if (_rec && _rec.state !== 'inactive') { _rec.stop(); if (_stream) _stream.getTracks().forEach(function(t) { t.stop(); }); }
+    var s = document.getElementById('prStart'); if (s) s.disabled = true;
+    var st2 = document.getElementById('prStop'); if (st2) st2.style.display = 'none';
+  }
+
+  document.getElementById('prClose').addEventListener('click', function() { zone.style.display = 'none'; });
+
+  document.getElementById('prStart').addEventListener('click', function() {
+    if (_rec && _rec.state === 'recording') { _rec.pause(); this.textContent = '▶ Reprendre'; return; }
+    if (_rec && _rec.state === 'paused') { _rec.resume(); this.textContent = '⏸ Pause'; return; }
+
+    var self = this;
+    var actx;
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { toast('Audio non disponible'); return; }
+
+    var startRec2 = function() {
+      navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(function(stream) {
+        _stream = stream; _chunks = []; _elapsed = 0;
+
+        var src = actx.createMediaStreamSource(stream);
+        var an = actx.createAnalyser(); an.fftSize = 256; src.connect(an);
+        var buf = new Uint8Array(an.frequencyBinCount);
+        var cv = document.getElementById('prWave'); var cx = cv && cv.getContext('2d');
+        (function wv() {
+          if (!_rec || _rec.state === 'inactive') return; requestAnimationFrame(wv);
+          if (!cx) return; an.getByteTimeDomainData(buf);
+          cx.fillStyle = '#080810'; cx.fillRect(0, 0, cv.width, cv.height);
+          cx.strokeStyle = '#5b4fcf'; cx.lineWidth = 1.5; cx.beginPath();
+          var sl = cv.width / buf.length;
+          for (var ii = 0; ii < buf.length; ii++) { var y = (buf[ii] / 128 - 1) * (cv.height / 2) + cv.height / 2; ii ? cx.lineTo(ii * sl, y) : cx.moveTo(0, y); }
+          cx.stroke();
+        })();
+
+        var mimeType = _getBestMimeType();
+        try { _rec = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream); }
+        catch(e) { _rec = new MediaRecorder(stream); }
+
+        _rec.ondataavailable = function(e) { if (e.data && e.data.size > 0) _chunks.push(e.data); };
+        _rec.onstop = function() {
+          var usedMime = _rec.mimeType || mimeType || 'audio/webm';
+          var blob = new Blob(_chunks, { type: usedMime });
+          var url = URL.createObjectURL(blob);
+          var rd = new FileReader(); rd.onload = function(ev) {
+            _dataUrl = ev.target.result;
+            var pl = document.getElementById('prPlayer'); if (pl) { pl.src = url; pl.load(); }
+            var res = document.getElementById('prRes'); if (res) res.style.display = '';
+            var st3 = document.getElementById('prStat'); if (st3) st3.textContent = 'Durée : ' + Math.floor(_elapsed) + 's';
+          }; rd.readAsDataURL(blob);
+        };
+
+        _rec.start(250);
+        self.textContent = '⏸ Pause';
+        var stb = document.getElementById('prStop'); if (stb) stb.style.display = '';
+        var st4 = document.getElementById('prStat'); if (st4) st4.textContent = 'Enregistrement...';
+
+        _timer = setInterval(function() {
+          _elapsed++;
+          var m = Math.floor(_elapsed / 60), s2 = _elapsed % 60;
+          var te = document.getElementById('prTime'); if (te) te.textContent = m + ':' + (s2 < 10 ? '0' : '') + s2;
+          var pr = document.getElementById('prProg'); if (pr) pr.style.width = Math.min(100, _elapsed / MAX * 100) + '%';
+          if (_elapsed >= MAX) { doStop2(); toast('5 min'); }
+        }, 1000);
+
+      }).catch(function(e) { try { actx.close(); } catch(ex) {} toast('Micro : ' + e.message); });
+    };
+
+    if (actx.state === 'suspended') actx.resume().then(startRec2).catch(startRec2);
+    else startRec2();
+  });
+
+  document.getElementById('prStop').addEventListener('click', doStop2);
+
+  document.getElementById('prSend').addEventListener('click', function() {
+    if (!_dataUrl) return;
+    sendMsg(sid, 'Audio', 'prof', { type: 'audio', dataUrl: _dataUrl, duration: _elapsed });
+    toast('Audio envoyé !'); zone.style.display = 'none';
+    var thread = document.getElementById('msgThread');
+    if (thread) { thread.innerHTML = renderMsgThread(getMsgs(sid), 'prof'); scrollMsgThread(); }
+  });
+}
+
+console.log('[Maestro v24b] Fix audio iOS chargé ✓');
+</script>
 </body>
 </html>
