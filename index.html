@@ -5376,5 +5376,147 @@ function openProfRecorder(sid) {
 
 console.log('[Maestro v24b] Fix audio iOS chargé ✓');
 </script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   MAESTRO v24c — FIX LECTURE AUDIO iOS/Safari
+   Coller juste avant </body>, après les patches v24 et v24b
+   ══════════════════════════════════════════════════════════════ */
+
+// Détecte le bon mimeType pour Safari iOS
+function _getBestMimeType() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) return 'audio/mp4';
+  if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) return 'audio/webm;codecs=opus';
+  if (MediaRecorder.isTypeSupported('audio/webm')) return 'audio/webm';
+  if (MediaRecorder.isTypeSupported('audio/mp4')) return 'audio/mp4';
+  return '';
+}
+
+// Crée un élément audio qui fonctionne partout
+function _makeAudioEl(dataUrl) {
+  var audio = document.createElement('audio');
+  audio.controls = true;
+  audio.style.cssText = 'width:100%;margin-bottom:8px';
+  audio.setAttribute('playsinline', '');
+  audio.setAttribute('preload', 'metadata');
+
+  // Détecter le type depuis le dataUrl
+  var mimeMatch = dataUrl && dataUrl.match(/^data:([^;]+);/);
+  var mimeType = mimeMatch ? mimeMatch[1] : '';
+
+  // Créer une source explicite avec le bon type
+  var source = document.createElement('source');
+  source.src = dataUrl;
+  if (mimeType) source.type = mimeType;
+  audio.appendChild(source);
+
+  // Fallback : src direct aussi
+  audio.src = dataUrl;
+
+  return audio;
+}
+
+// Patch renderMsgThread pour utiliser _makeAudioEl
+function renderMsgThread(msgs, myRole) {
+  if (!msgs.length) return '<div style="text-align:center;font-size:.75rem;color:var(--muted);padding:16px 0">Aucun message</div>';
+  return msgs.map(function(m) {
+    var isMe = m.from === myRole;
+    var dt = new Date(m.time);
+    var time = p2(dt.getHours()) + ':' + p2(dt.getMinutes());
+    var readTick = isMe ? ('<span class="msg-read-tick' + (m.read ? ' read' : '') + '">' + (m.read ? '✓✓' : '✓') + '</span>') : '';
+    var audioHtml = '';
+    if (m.attachment && m.attachment.type === 'audio' && m.attachment.dataUrl) {
+      // Créer un id unique pour injecter l'audio après
+      var audioId = 'aud_' + m.time;
+      audioHtml = '<div style="margin-top:5px" id="' + audioId + '_wrap">'
+        + '<div style="font-size:.62rem;color:rgba(255,255,255,.5);margin-bottom:3px">🎙 ' + Math.floor(m.attachment.duration || 0) + 's</div>'
+        + '<div id="' + audioId + '"></div>'
+        + '</div>';
+    }
+    return '<div style="display:flex;flex-direction:column;align-items:' + (isMe ? 'flex-end' : 'flex-start') + '">'
+      + '<div class="msg-bubble ' + (isMe ? 'msg-from-me' : 'msg-from-prof') + '">'
+      + escHtml(m.text) + audioHtml + '</div>'
+      + '<div class="msg-meta">' + time + readTick + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// Après avoir rendu le thread, injecter les vrais éléments audio
+function _injectAudioPlayers(msgs) {
+  msgs.forEach(function(m) {
+    if (!m.attachment || m.attachment.type !== 'audio' || !m.attachment.dataUrl) return;
+    var audioId = 'aud_' + m.time;
+    var container = document.getElementById(audioId);
+    if (!container) return;
+    container.innerHTML = '';
+    var audioEl = _makeAudioEl(m.attachment.dataUrl);
+    container.appendChild(audioEl);
+  });
+}
+
+// Patch scrollMsgThread pour injecter les players après rendu
+var _origScrollMsgThread = scrollMsgThread;
+scrollMsgThread = function() {
+  _origScrollMsgThread();
+  // Injecter les players audio dans tous les threads visibles
+  setTimeout(function() {
+    var sts2 = LS.sts();
+    sts2.forEach(function(st) {
+      var msgs = getMsgs(st.id);
+      _injectAudioPlayers(msgs);
+    });
+    // Aussi pour l'élève connecté
+    if (uid) _injectAudioPlayers(getMsgs(uid));
+  }, 50);
+};
+
+// Patch buildRecorder — fix le player après enregistrement
+var _origBuildRecorder = buildRecorder;
+buildRecorder = function(el) {
+  _origBuildRecorder(el);
+
+  // Intercepter le onstop pour recréer le player correctement
+  var rcStop = document.getElementById('rcStop');
+  if (rcStop) {
+    var origClick = rcStop.onclick;
+    rcStop.addEventListener('click', function() {
+      setTimeout(function() {
+        var pl = document.getElementById('rcPlayer');
+        var res = document.getElementById('rcRes');
+        if (!pl || !res || res.style.display === 'none') return;
+        // Le src a été défini par l'original — on recrée juste la source
+        var currentSrc = pl.src;
+        if (!currentSrc) return;
+        pl.load(); // forcer Safari à charger
+        pl.onerror = function() {
+          // Si erreur, essayer sans type forcé
+          pl.removeAttribute('type');
+          pl.src = currentSrc;
+          pl.load();
+        };
+      }, 200);
+    });
+  }
+};
+
+// Fix pour l'enregistreur dans la messagerie prof
+// Patch openProfRecorder — fix player
+var _origOpenProfRecorder = openProfRecorder;
+openProfRecorder = function(sid) {
+  _origOpenProfRecorder(sid);
+  setTimeout(function() {
+    var prPlayer = document.getElementById('prPlayer');
+    if (!prPlayer) return;
+    prPlayer.onerror = function() {
+      var src = prPlayer.src || prPlayer.currentSrc;
+      if (src) { prPlayer.src = ''; prPlayer.src = src; prPlayer.load(); }
+    };
+  }, 300);
+};
+
+console.log('[Maestro v24c] Fix lecture audio chargé ✓');
+</script>
 </body>
 </html>
