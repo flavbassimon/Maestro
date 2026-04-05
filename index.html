@@ -5518,5 +5518,834 @@ openProfRecorder = function(sid) {
 
 console.log('[Maestro v24c] Fix lecture audio chargé ✓');
 </script>
+<!-- ═══════════════════════════════════════════════════════════
+  PATCH AVATAR v6 — À coller juste avant </body> dans index.html
+  Remplace entièrement l'ancien système d'avatar.
+  Compatibilité : buildAvatarSVG(cfg) fonctionne comme avant.
+  Structure cfg attendue :
+  {
+    scene, gender, skin, hair, hairColor, eye, expr,
+    outfit, acc, extra, inst
+  }
+  Si ton ancien code utilise d'autres noms de clés, voir
+  la fonction buildAvatarSVG() en bas qui fait le mapping.
+═══════════════════════════════════════════════════════════ -->
+
+<script>
+/* ── DONNÉES AVATAR ── */
+// ══ CONFIG ══
+var C={scene:'sc1',gender:'f',skin:'sk2',hair:'fh2',hairColor:'hc3',eye:'ec1',expr:'ex1',outfit:'ot4',acc:'ac0',extra:'ex0',inst:'in1'};
+
+var HAIR_F=[
+  {id:'fh1',n:'Courte frange'},{id:'fh2',n:'Queue haute'},
+  {id:'fh3',n:'Long lisse'},{id:'fh4',n:'Nattes'},
+  {id:'fh5',n:'Boucles'},{id:'fh6',n:'Chignon'},
+  {id:'fh7',n:'Ondulé'},{id:'fh8',n:'Pixie'},
+];
+var HAIR_M=[
+  {id:'mh1',n:'Classique court'},{id:'mh2',n:'Mèche côté'},
+  {id:'mh3',n:'Ébouriffé'},
+  {id:'mh5',n:'Frange longue'},
+  {id:'mh7',n:'Undercut'},{id:'mh8',n:'Tressé court'},
+];
+
+var DATA={
+  scenes:[
+    {id:'sc1',n:'Cosmos',bg1:'#050310',bg2:'#12082E',ac:'#6858d8',gl:'#2818A0'},
+    {id:'sc2',n:'Aurora',bg1:'#030C06',bg2:'#082818',ac:'#2dbd8f',gl:'#104828'},
+    {id:'sc3',n:'Crépuscule',bg1:'#0A0318',bg2:'#1C0838',ac:'#9b6fe8',gl:'#3A1060'},
+    {id:'sc4',n:'Coucher',bg1:'#0A0400',bg2:'#200C00',ac:'#f5a623',gl:'#502000'},
+    {id:'sc5',n:'Braise',bg1:'#0A0202',bg2:'#280808',ac:'#f0614a',gl:'#601010'},
+    {id:'sc6',n:'Océan',bg1:'#020810',bg2:'#041828',ac:'#3b9edd',gl:'#083860'},
+  ],
+  genders:[{id:'f',n:'Fille'},{id:'m',n:'Garçon'}],
+  skins:[
+    {id:'sk1',c:'#FFE4C0',sh:'#F0C080'},{id:'sk2',c:'#FDDBB4',sh:'#E8A96A'},
+    {id:'sk3',c:'#E8A970',sh:'#C07030'},{id:'sk4',c:'#C47B3A',sh:'#8A4510'},
+    {id:'sk5',c:'#8A5020',sh:'#5A2C08'},{id:'sk6',c:'#5A2E10',sh:'#361806'},
+  ],
+  hairColors:[
+    {id:'hc1',c:'#1A0C04'},{id:'hc2',c:'#080810'},{id:'hc3',c:'#C88010'},
+    {id:'hc4',c:'#F0E080'},{id:'hc5',c:'#8A2000'},{id:'hc6',c:'#6A1888'},
+    {id:'hc7',c:'#C8005A'},{id:'hc8',c:'#E890C0'},{id:'hc9',c:'#1848A0'},
+    {id:'hca',c:'#60C0F0'},{id:'hcb',c:'#18A048'},{id:'hcc',c:'#D0D0E8'},
+  ],
+  eyes:[
+    {id:'ec1',c:'#1E5AA8'},{id:'ec2',c:'#2E7A2E'},{id:'ec3',c:'#7A4010'},
+    {id:'ec4',c:'#6838A8'},{id:'ec5',c:'#28A8A8'},{id:'ec6',c:'#101018'},
+    {id:'ec7',c:'#808098'},{id:'ec8',c:'#C06000'},
+  ],
+  exprs:[
+    {id:'ex1',n:'Souriant'},{id:'ex2',n:'Joyeux'},
+    {id:'ex3',n:'Sérieux'},{id:'ex4',n:'Clin d\'œil'},{id:'ex5',n:'Surpris'},
+  ],
+  outfits:[
+    {id:'ot1',n:'Concert',m:'#1C1C3A',d:'#08081E',l:'#3A3A6A'},
+    {id:'ot2',n:'Casual',m:'#1A5A9A',d:'#0A3060',l:'#4A8ACA'},
+    {id:'ot3',n:'Étoile',m:'#B06000',d:'#703800',l:'#E08820'},
+    {id:'ot4',n:'Royal',m:'#5A1A8A',d:'#380A58',l:'#8A4ABA'},
+    {id:'ot5',n:'Maestro',m:'#8A1A1A',d:'#560808',l:'#C04040'},
+    {id:'ot6',n:'Forêt',m:'#1A5A30',d:'#0A3018',l:'#3A8A50'},
+    {id:'ot7',n:'Marine',m:'#0A2858',d:'#041028',l:'#1A4888'},
+    {id:'ot8',n:'Lilas',m:'#6A2880',d:'#400858',l:'#9A58B0'},
+  ],
+  accs:[
+    {id:'ac0',n:'Aucun',t:'none'},{id:'ac1',n:'Chapeau',t:'tophat',c:'#1C1C3A'},
+    {id:'ac2',n:'Béret',t:'beret',c:'#8B0000'},{id:'ac3',n:'Lunettes',t:'glasses',c:'#202030'},
+    {id:'ac4',n:'Couronne',t:'crown',c:'#D4A017'},{id:'ac5',n:'Casque',t:'phones',c:'#5b4fcf'},
+    {id:'ac6',n:'Halo',t:'halo',c:'#F0D040'},{id:'ac7',n:'Oreilles chat',t:'catears',c:'#FF80B0'},
+  ],
+  extras:[
+    {id:'ex0',n:'Aucun'},{id:'ex1',n:'Nœud pap.',t:'bowtie',c:'#C00030'},
+    {id:'ex2',n:'Écharpe',t:'scarf',c:'#C83020'},{id:'ex3',n:'Cape',t:'cape',c:'#1C1C3A'},
+    {id:'ex4',n:'Ailes',t:'wings',c:'#D0E8FF'},{id:'ex5',n:'Médaille',t:'medal',c:'#D4A017'},
+    {id:'ex6',n:'Notes',t:'notes',c:'#5b4fcf'},
+  ],
+  insts:[
+    {id:'in1',n:'Flûte',t:'flute',c:'#C8C8D8'},{id:'in2',n:'Violon',t:'violin',c:'#8B4513'},
+    {id:'in3',n:'Guitare',t:'guitar',c:'#C07010'},{id:'in4',n:'Piano',t:'piano',c:'#181828'},
+    {id:'in5',n:'Trompette',t:'trumpet',c:'#D4A017'},{id:'in6',n:'Harpe',t:'harp',c:'#D4A017'},
+    {id:'in7',n:'Violoncelle',t:'cello',c:'#6B3010'},{id:'in8',n:'Clarinette',t:'clarinet',c:'#181818'},
+  ],
+};
+
+// ══ COULEURS ══
+function lx(h,a){var n=parseInt((h||'#888').replace('#',''),16)||0;return '#'+[Math.min(255,((n>>16)&255)+a),Math.min(255,((n>>8)&255)+a),Math.min(255,(n&255)+a)].map(function(v){return v.toString(16).padStart(2,'0')}).join('')}
+function dk(h,a){var n=parseInt((h||'#888').replace('#',''),16)||0;return '#'+[Math.max(0,((n>>16)&255)-a),Math.max(0,((n>>8)&255)-a),Math.max(0,(n&255)-a)].map(function(v){return v.toString(16).padStart(2,'0')}).join('')}
+function find(arr,id,def){return arr.find(function(x){return x.id===id})||def}
+
+// ══ CONSTANTES DE PROPORTIONS ══
+// ViewBox 300×400
+// Tout est exprimé en % de ces dimensions
+var W=300, H=400, CX=150;
+
+// Tête : naturelle, légèrement en forme d'œuf (plus large en haut)
+var HCY=138, HRX=50, HRY=54;
+
+// Corps : bien proportionné avec taille
+var BT=188, BB=282, BHW=38; // BHW = demi-largeur épaules
+
+// Jambes
+var LB=358, FB=380;
+
+// Épaules Y
+var SY=BT+16;
+
+// ══ CONSTRUCTION SVG ══
+function buildSVG(c){
+  var sc=find(DATA.scenes,c.scene,DATA.scenes[0]);
+  var sk=find(DATA.skins,c.skin,DATA.skins[1]);
+  var hc=find(DATA.hairColors,c.hairColor,DATA.hairColors[2]);
+  var ec=find(DATA.eyes,c.eye,DATA.eyes[0]);
+  var ot=find(DATA.outfits,c.outfit,DATA.outfits[3]);
+  var ac=find(DATA.accs,c.acc,DATA.accs[0]);
+  var ex=find(DATA.extras,c.extra,DATA.extras[0]);
+  var it=find(DATA.insts,c.inst,DATA.insts[0]);
+  var expr=c.expr;
+  var hairList=c.gender==='f'?HAIR_F:HAIR_M;
+  var hs=find(hairList,c.hair,hairList[0]);
+  var isMale=c.gender==='m';
+  var id='av'+Math.random().toString(36).slice(2,6);
+
+  var o='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">';
+  o+=svgDefs(id,sc,sk,hc,ot,ec);
+  o+=svgScene(id,sc);
+
+  // Ordre de dessin strict — pas de transparences parasites
+  o+=svgLegs(id,ot);
+  o+=svgBody(id,ot,isMale,ex);
+  o+=svgArmsBack(id,ot); // partie bras derrière
+  o+=svgInstrument(id,it);
+  o+=svgArmsFront(id,sk,ot); // mains devant
+  // Cou — couche fine entre corps et tête
+  o+='<path d="M'+(CX-9)+' '+(HCY+HRY-4)+' L'+(CX-9)+' '+(BT-2)+' Q'+CX+' '+(BT+3)+' '+(CX+9)+' '+(BT-2)+' L'+(CX+9)+' '+(HCY+HRY-4)+' Q'+CX+' '+(HCY+HRY+4)+' '+(CX-9)+' '+(HCY+HRY-4)+' Z" fill="'+sk.c+'"/>';
+  o+=svgHead(id,sk,hc,ec,expr,hs,ac,isMale);
+  o+=svgExtra(id,ex,ot);
+
+  o+='</svg>';
+  return o;
+}
+
+// ══ DEFS ══
+function svgDefs(id,sc,sk,hc,ot,ec){
+  var o='<defs>';
+  o+='<radialGradient id="BG'+id+'" cx="50%" cy="40%" r="72%"><stop offset="0%" stop-color="'+sc.bg2+'"/><stop offset="100%" stop-color="'+sc.bg1+'"/></radialGradient>';
+  o+='<radialGradient id="GL'+id+'" cx="50%" cy="92%" r="52%"><stop offset="0%" stop-color="'+sc.gl+'" stop-opacity="0.7"/><stop offset="100%" stop-color="'+sc.gl+'" stop-opacity="0"/></radialGradient>';
+  o+='<radialGradient id="SK'+id+'" cx="35%" cy="28%" r="65%"><stop offset="0%" stop-color="'+lx(sk.c,20)+'"/><stop offset="55%" stop-color="'+sk.c+'"/><stop offset="100%" stop-color="'+sk.sh+'"/></radialGradient>';
+  o+='<radialGradient id="FC'+id+'" cx="38%" cy="30%" r="62%"><stop offset="0%" stop-color="'+lx(sk.c,16)+'"/><stop offset="60%" stop-color="'+sk.c+'"/><stop offset="100%" stop-color="'+sk.sh+'"/></radialGradient>';
+  o+='<radialGradient id="HC'+id+'" cx="30%" cy="18%" r="70%"><stop offset="0%" stop-color="'+lx(hc.c,55)+'"/><stop offset="55%" stop-color="'+hc.c+'"/><stop offset="100%" stop-color="'+dk(hc.c,30)+'"/></radialGradient>';
+  o+='<radialGradient id="OT'+id+'" cx="28%" cy="15%" r="80%"><stop offset="0%" stop-color="'+lx(ot.m,30)+'"/><stop offset="52%" stop-color="'+ot.m+'"/><stop offset="100%" stop-color="'+ot.d+'"/></radialGradient>';
+  o+='<radialGradient id="OTD'+id+'" cx="72%" cy="15%" r="80%"><stop offset="0%" stop-color="'+lx(ot.m,12)+'"/><stop offset="100%" stop-color="'+ot.d+'"/></radialGradient>';
+  o+='<radialGradient id="EY'+id+'" cx="32%" cy="28%" r="65%"><stop offset="0%" stop-color="'+lx(ec.c,64)+'"/><stop offset="55%" stop-color="'+ec.c+'"/><stop offset="100%" stop-color="'+dk(ec.c,38)+'"/></radialGradient>';
+  // Gradients instruments
+  o+='<linearGradient id="GFL'+id+'" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#E0E0EC"/><stop offset="50%" stop-color="#B8B8C8"/><stop offset="100%" stop-color="#808090"/></linearGradient>';
+  o+='<linearGradient id="GVL'+id+'" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#C87840"/><stop offset="50%" stop-color="#8B4513"/><stop offset="100%" stop-color="#4A1E00"/></linearGradient>';
+  o+='<linearGradient id="GGT'+id+'" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E09020"/><stop offset="100%" stop-color="#704000"/></linearGradient>';
+  o+='<linearGradient id="GTR'+id+'" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#F8D860"/><stop offset="100%" stop-color="#906800"/></linearGradient>';
+  o+='<linearGradient id="GHP'+id+'" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F0C840"/><stop offset="100%" stop-color="#906800"/></linearGradient>';
+  o+='<linearGradient id="GCL'+id+'" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#282828"/><stop offset="100%" stop-color="#080808"/></linearGradient>';
+  // Filtres
+  o+='<filter id="FDS'+id+'"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.4"/></filter>';
+  o+='<filter id="FSS'+id+'"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.3"/></filter>';
+  o+='<filter id="FIS'+id+'"><feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.45"/></filter>';
+  o+='<filter id="FGW'+id+'"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="'+sc.ac+'" flood-opacity="0.5"/></filter>';
+  // ClipPath tête — masque propre pour les cheveux
+  o+='<clipPath id="CHC'+id+'"><ellipse cx="'+CX+'" cy="'+HCY+'" rx="'+(HRX+1)+'" ry="'+(HRY+1)+'"/></clipPath>';
+  o+='</defs>';
+  return o;
+}
+
+// ══ SCÈNE ══
+function svgScene(id,sc){
+  var o='<rect width="'+W+'" height="'+H+'" fill="url(#BG'+id+')"/>';
+  // Étoiles
+  [[20,14,1.0,0.65],[48,7,0.75,0.5],[270,17,1.1,0.7],[295,9,0.8,0.5],[160,5,0.85,0.6],[252,68,0.65,0.38],[30,105,0.75,0.42],[282,152,0.95,0.52],[8,188,0.7,0.38],[292,262,0.8,0.45]].forEach(function(s){
+    o+='<circle cx="'+s[0]+'" cy="'+s[1]+'" r="'+s[2]+'" fill="white" opacity="'+s[3]+'"/>';
+  });
+  // Portées
+  [26,33,40,47,54].forEach(function(y,i){o+='<line x1="5" y1="'+y+'" x2="295" y2="'+(y+1)+'" stroke="'+sc.ac+'" stroke-width="0.65" opacity="'+(i%2===0?0.1:0.055)+'"/>';});
+  [278,285,292,299,306].forEach(function(y,i){o+='<line x1="5" y1="'+y+'" x2="295" y2="'+(y+1)+'" stroke="'+sc.ac+'" stroke-width="0.55" opacity="'+(i%2===0?0.06:0.038)+'"/>';});
+  // Notes
+  [{x:12,y:21,s:10,n:'♩',d:'3.4s',o:.38},{x:284,y:28,s:9,n:'♪',d:'2.7s',o:.3},{x:290,y:142,s:11,n:'♫',d:'4.0s',o:.28},{x:8,y:175,s:9,n:'♬',d:'3.1s',o:.32},{x:288,y:288,s:10,n:'♩',d:'3.7s',o:.25}].forEach(function(n){
+    o+='<text x="'+n.x+'" y="'+n.y+'" font-size="'+n.s+'" fill="'+sc.ac+'" opacity="'+n.o+'" font-family="serif" text-anchor="middle">';
+    o+=n.n;
+    o+='<animate attributeName="opacity" values="'+n.o+';'+(n.o*.14)+';'+n.o+'" dur="'+n.d+'" repeatCount="indefinite"/>';
+    o+='<animateTransform attributeName="transform" type="translate" values="0,0;0,-13;0,0" dur="'+n.d+'" repeatCount="indefinite"/>';
+    o+='</text>';
+  });
+  // Halo sol + ombre
+  o+='<ellipse cx="'+CX+'" cy="392" rx="140" ry="28" fill="url(#GL'+id+')"/>';
+  o+='<ellipse cx="'+CX+'" cy="388" rx="78" ry="9" fill="'+sc.gl+'" opacity="0.48"/>';
+  o+='<ellipse cx="'+CX+'" cy="383" rx="44" ry="6" fill="#000" opacity="0.36"/>';
+  return o;
+}
+
+// ══ JAMBES ══
+function svgLegs(id,ot){
+  var o='';
+  var lw=16;
+  // Gauche
+  o+='<path d="M'+(CX-lw-12)+' '+BB+' Q'+(CX-lw-14)+' '+(BB+36)+' '+(CX-lw-14)+' '+LB+' Q'+(CX-5)+' '+(LB+4)+' '+(CX)+' '+LB+' Q'+(CX-lw-2)+' '+(BB+36)+' '+(CX-lw-2)+' '+BB+' Z" fill="url(#OT'+id+')" filter="url(#FSS'+id+')"/>';
+  // Droite
+  o+='<path d="M'+(CX+lw+2)+' '+BB+' Q'+(CX+lw+2)+' '+(BB+36)+' '+(CX+lw)+' '+LB+' Q'+(CX+5)+' '+(LB+4)+' '+(CX+lw+14)+' '+LB+' Q'+(CX+lw+14)+' '+(BB+36)+' '+(CX+lw+12)+' '+BB+' Z" fill="url(#OTD'+id+')"/>';
+  // Chaussures
+  o+='<ellipse cx="'+(CX-18)+'" cy="'+FB+'" rx="19" ry="10" fill="#0C0C1E" filter="url(#FSS'+id+')"/>';
+  o+='<ellipse cx="'+(CX+18)+'" cy="'+FB+'" rx="19" ry="10" fill="#0C0C1E"/>';
+  o+='<ellipse cx="'+(CX-22)+'" cy="'+(FB-4)+'" rx="10" ry="5.5" fill="#1A1A35" opacity="0.58"/>';
+  o+='<ellipse cx="'+(CX+14)+'" cy="'+(FB-4)+'" rx="10" ry="5.5" fill="#1A1A35" opacity="0.58"/>';
+  return o;
+}
+
+// ══ CORPS ══
+function svgBody(id,ot,isMale,ex){
+  var o='';
+  var hw=BHW;
+  // Taille légèrement marquée
+  var tw=isMale?hw-1:hw-4;
+  var mid=(BT+BB)/2;
+  // Corps avec courbe naturelle
+  o+='<path d="M'+(CX-hw)+' '+BT+' C'+(CX-hw-8)+' '+(BT+22)+' '+(CX-tw-2)+' '+(mid-8)+' '+(CX-tw)+' '+mid+' C'+(CX-tw-2)+' '+(mid+8)+' '+(CX-hw)+' '+(BB-20)+' '+(CX-hw+2)+' '+BB+' Q'+CX+' '+(BB+7)+' '+(CX+hw-2)+' '+BB+' C'+(CX+hw)+' '+(BB-20)+' '+(CX+tw+2)+' '+(mid+8)+' '+(CX+tw)+' '+mid+' C'+(CX+tw-2)+' '+(mid-8)+' '+(CX+hw+8)+' '+(BT+22)+' '+(CX+hw)+' '+BT+' Q'+CX+' '+(BT-6)+' '+(CX-hw)+' '+BT+' Z" fill="url(#OT'+id+')" filter="url(#FDS'+id+')"/>';
+  // Reflet veste
+  o+='<path d="M'+(CX-hw+2)+' '+(BT+5)+' C'+(CX-hw-4)+' '+(BT+22)+' '+(CX-tw)+' '+(mid-10)+' '+(CX-tw+1)+' '+mid+' L'+(CX-tw+7)+' '+mid+' C'+(CX-tw+5)+' '+(mid-10)+' '+(CX-hw+7)+' '+(BT+20)+' '+(CX-hw+6)+' '+(BT+8)+' Z" fill="white" opacity="0.08"/>';
+  // Col chemise blanc
+  o+='<path d="M'+(CX-14)+' '+(BT+5)+' Q'+CX+' '+(BT+19)+' '+(CX+14)+' '+(BT+5)+' L'+(CX+12)+' '+(BT-5)+' Q'+CX+' '+(BT+9)+' '+(CX-12)+' '+(BT-5)+' Z" fill="white" opacity="0.96"/>';
+  o+='<path d="M'+(CX-12)+' '+(BT-5)+' Q'+CX+' '+(BT+5)+' '+(CX+12)+' '+(BT-5)+' Q'+CX+' '+(BT)+' '+(CX-12)+' '+(BT-5)+' Z" fill="white" opacity="0.38"/>';
+  // Boutons
+  [BT+34,BT+50,BT+66].forEach(function(y){
+    o+='<circle cx="'+CX+'" cy="'+y+'" r="2.2" fill="'+dk(ot.m,42)+'" opacity="0.6"/>';
+  });
+  // Écharpe
+  if(ex&&ex.t==='scarf'){
+    var sc2=ex.c;
+    o+='<path d="M'+(CX-16)+' '+(BT-3)+' Q'+CX+' '+(BT+13)+' '+(CX+16)+' '+(BT-3)+' Q'+(CX+20)+' '+(BT+7)+' '+(CX+23)+' '+(BT+17)+' Q'+CX+' '+(BT+25)+' '+(CX-23)+' '+(BT+17)+' Q'+(CX-20)+' '+(BT+7)+' '+(CX-16)+' '+(BT-3)+' Z" fill="'+sc2+'" opacity="0.9"/>';
+    o+='<path d="M'+(CX+23)+' '+(BT+15)+' Q'+(CX+28)+' '+(BT+42)+' '+(CX+22)+' '+(BT+55)+' Q'+(CX+16)+' '+(BT+57)+' '+(CX+12)+' '+(BT+53)+' Q'+(CX+18)+' '+(BT+40)+' '+(CX+16)+' '+(BT+17)+' Z" fill="'+sc2+'"/>';
+  }
+  return o;
+}
+
+// ══ BRAS (partie manches - derrière instrument) ══
+function svgArmsBack(id,ot){
+  var o='';
+  var hw=BHW;
+  // Bras gauche — manche
+  o+='<path d="M'+(CX-hw)+' '+SY+' C'+(CX-hw-12)+' '+(SY+18)+' '+(CX-hw-24)+' '+(SY+40)+' '+(CX-hw-28)+' '+(SY+62)+' L'+(CX-hw-18)+' '+(SY+66)+' C'+(CX-hw-14)+' '+(SY+44)+' '+(CX-hw-2)+' '+(SY+22)+' '+(CX-hw+10)+' '+SY+' Z" fill="url(#OT'+id+')" filter="url(#FSS'+id+')"/>';
+  // Avant-bras gauche
+  o+='<path d="M'+(CX-hw-24)+' '+(SY+40)+' C'+(CX-hw-30)+' '+(SY+55)+' '+(CX-hw-34)+' '+(SY+72)+' '+(CX-hw-34)+' '+(SY+88)+' L'+(CX-hw-22)+' '+(SY+90)+' C'+(CX-hw-22)+' '+(SY+74)+' '+(CX-hw-18)+' '+(SY+58)+' '+(CX-hw-14)+' '+(SY+44)+' Z" fill="url(#OTD'+id+')"/>';
+
+  // Bras droit — manche
+  o+='<path d="M'+(CX+hw)+' '+SY+' C'+(CX+hw+12)+' '+(SY+18)+' '+(CX+hw+22)+' '+(SY+38)+' '+(CX+hw+25)+' '+(SY+58)+' L'+(CX+hw+14)+' '+(SY+62)+' C'+(CX+hw+12)+' '+(SY+42)+' '+(CX+hw+2)+' '+(SY+22)+' '+(CX+hw-10)+' '+SY+' Z" fill="url(#OT'+id+')"/>';
+  // Avant-bras droit
+  o+='<path d="M'+(CX+hw+22)+' '+(SY+38)+' C'+(CX+hw+27)+' '+(SY+52)+' '+(CX+hw+30)+' '+(SY+68)+' '+(CX+hw+28)+' '+(SY+84)+' L'+(CX+hw+16)+' '+(SY+86)+' C'+(CX+hw+18)+' '+(SY+70)+' '+(CX+hw+16)+' '+(SY+54)+' '+(CX+hw+12)+' '+(SY+42)+' Z" fill="url(#OTD'+id+')"/>';
+  return o;
+}
+
+// ══ BRAS AVANT (mains) ══
+function svgArmsFront(id,sk,ot){
+  var o='';
+  var hw=BHW;
+  // Main gauche — tient l'instrument
+  var mlx=CX-hw-34, mly=SY+90;
+  o+=svgHand(id,sk,mlx+4,mly+7,'left');
+  // Main droite
+  var mrx=CX+hw+28, mry=SY+84;
+  o+=svgHand(id,sk,mrx-2,mry+5,'right');
+  return o;
+}
+
+function svgHand(id,sk,cx,cy,side){
+  var o='';
+  // Paume
+  o+='<ellipse cx="'+cx+'" cy="'+cy+'" rx="10" ry="9" fill="url(#SK'+id+')" filter="url(#FSS'+id+')"/>';
+  // 4 doigts groupés
+  var dx=side==='left'?-1:1;
+  [[-7,-10],[-3,-13],[2,-13],[6,-10]].forEach(function(d,i){
+    var fx=cx+d[0], fy=cy+d[1];
+    o+='<ellipse cx="'+fx+'" cy="'+fy+'" rx="3.5" ry="6.5" fill="url(#SK'+id+')" transform="rotate('+(dx*i*6)+' '+fx+' '+fy+')"/>';
+  });
+  // Pouce
+  if(side==='left'){
+    o+='<ellipse cx="'+(cx+9)+'" cy="'+(cy-3)+'" rx="3.2" ry="5.5" fill="url(#SK'+id+')" transform="rotate(38 '+(cx+9)+' '+(cy-3)+')"/>';
+  } else {
+    o+='<ellipse cx="'+(cx-9)+'" cy="'+(cy-3)+'" rx="3.2" ry="5.5" fill="url(#SK'+id+')" transform="rotate(-38 '+(cx-9)+' '+(cy-3)+')"/>';
+  }
+  return o;
+}
+
+// ══ TÊTE ══
+function svgHead(id,sk,hc,ec,expr,hs,ac,isMale){
+  var o='';
+  // Cheveux derrière (avant la tête)
+  o+=svgHairBack(id,hc,hs,ac,isMale);
+  // Tête — forme d'œuf : plus large en haut, légèrement aplatie en bas
+  o+='<ellipse cx="'+CX+'" cy="'+HCY+'" rx="'+HRX+'" ry="'+HRY+'" fill="url(#FC'+id+')" filter="url(#FDS'+id+')"/>';
+  // Ombre bas du visage
+  o+='<ellipse cx="'+CX+'" cy="'+(HCY+HRY-10)+'" rx="'+(HRX-8)+'" ry="12" fill="'+sk.sh+'" opacity="0.09"/>';
+  // Blush
+  o+='<ellipse cx="'+(CX-30)+'" cy="'+(HCY+14)+'" rx="11" ry="6" fill="#FF8FAA" opacity="0.17"/>';
+  o+='<ellipse cx="'+(CX+30)+'" cy="'+(HCY+14)+'" rx="11" ry="6" fill="#FF8FAA" opacity="0.17"/>';
+  // Oreilles
+  o+='<ellipse cx="'+(CX-HRX-1)+'" cy="'+(HCY+2)+'" rx="10" ry="13" fill="url(#FC'+id+')" filter="url(#FSS'+id+')"/>';
+  o+='<ellipse cx="'+(CX-HRX)+'" cy="'+(HCY+2)+'" rx="5.5" ry="7.5" fill="'+sk.sh+'" opacity="0.2"/>';
+  o+='<ellipse cx="'+(CX+HRX+1)+'" cy="'+(HCY+2)+'" rx="10" ry="13" fill="url(#FC'+id+')"/>';
+  o+='<ellipse cx="'+(CX+HRX)+'" cy="'+(HCY+2)+'" rx="5.5" ry="7.5" fill="'+sk.sh+'" opacity="0.2"/>';
+  // Cheveux devant (frange)
+  o+=svgHairFront(id,hc,hs,ac,isMale);
+  // Visage
+  o+=svgFace(id,sk,hc,ec,expr,isMale);
+  // Accessoire
+  o+=svgAcc(id,ac,hc,sk);
+  return o;
+}
+
+// ══ CHEVEUX DERRIÈRE ══
+function svgHairBack(id,hc,hs,ac,isMale){
+  var o='';
+  var c=hc.c, cl=lx(c,55), cd=dk(c,28);
+  var ty=HCY-HRY;
+  var noHat=ac.t!=='tophat'&&ac.t!=='beret';
+
+  if(isMale){
+    // Volume de base pour toutes les coupes courtes
+    o+='<ellipse cx="'+CX+'" cy="'+(HCY-14)+'" rx="52" ry="48" fill="'+c+'"/>';
+
+    // ═══ STYLES GARÇON dessinés ICI (derrière la tête) ═══
+    var sk2=dk(c,45);
+    var maleBase='<ellipse cx="'+CX+'" cy="'+(HCY-16)+'" rx="'+(HRX+1)+'" ry="'+(HRY*0.75)+'" fill="'+c+'" stroke="'+sk2+'" stroke-width="2"/>';
+
+    if(hs.id==='mh1'){
+      o+=maleBase;
+      o+='<rect x="'+(CX-HRX+2)+'" y="'+(HCY-20)+'" width="'+(HRX*2-4)+'" height="6" rx="3" fill="'+c+'" stroke="'+sk2+'" stroke-width="1.5"/>';
+    }
+    else if(hs.id==='mh2'){
+      o+=maleBase;
+      o+='<rect x="'+(CX-HRX+4)+'" y="'+(HCY-22)+'" width="'+(HRX*2-8)+'" height="10" rx="5" fill="'+c+'" stroke="'+sk2+'" stroke-width="1.5"/>';
+      o+='<ellipse cx="'+(CX-22)+'" cy="'+(HCY-10)+'" rx="18" ry="8" fill="'+c+'" stroke="'+sk2+'" stroke-width="1.5" transform="rotate(-20 '+(CX-22)+' '+(HCY-10)+')" />';
+    }
+    else if(hs.id==='mh3'){
+      o+=maleBase;
+      [CX-32,CX-16,CX,CX+16,CX+32].forEach(function(px,i){
+        var py=HCY-HRY+4+(i%2===0?0:6);
+        o+='<ellipse cx="'+px+'" cy="'+py+'" rx="9" ry="10" fill="'+c+'" stroke="'+sk2+'" stroke-width="1.8"/>';
+      });
+    }
+    else if(hs.id==='mh5'){
+      o+=maleBase;
+      o+='<rect x="'+(CX-HRX+2)+'" y="'+(HCY-22)+'" width="'+(HRX*2-4)+'" height="18" rx="6" fill="'+c+'" stroke="'+sk2+'" stroke-width="1.5"/>';
+    }
+    else if(hs.id==='mh7'){
+      o+='<ellipse cx="'+CX+'" cy="'+(HCY-20)+'" rx="'+(HRX-12)+'" ry="'+(HRY*0.8)+'" fill="'+c+'" stroke="'+sk2+'" stroke-width="2"/>';
+      o+='<line x1="'+(CX-HRX+14)+'" y1="'+(HCY-30)+'" x2="'+(CX-HRX+14)+'" y2="'+(HCY+22)+'" stroke="'+sk2+'" stroke-width="3" stroke-linecap="round"/>';
+      o+='<line x1="'+(CX+HRX-14)+'" y1="'+(HCY-30)+'" x2="'+(CX+HRX-14)+'" y2="'+(HCY+22)+'" stroke="'+sk2+'" stroke-width="3" stroke-linecap="round"/>';
+    }
+    else if(hs.id==='mh8'){
+      o+=maleBase;
+      [-22,-8,6,20].forEach(function(dx2,i){
+        o+='<rect x="'+(CX+dx2-5)+'" y="'+(HCY-HRY+6)+'" width="10" height="'+(HRY*0.65)+'" rx="5" fill="'+(i%2===0?c:dk(c,20))+'" stroke="'+sk2+'" stroke-width="1.2"/>';
+      });
+    }
+    else {
+      o+=maleBase;
+    }
+
+    if(hs.id==='mh5'){ // Frange longue — longueur sur les côtés
+      o+='<path d="M'+(CX-50)+' '+(HCY+5)+' Q'+(CX-58)+' '+(HCY+30)+' '+(CX-54)+' '+(HCY+55)+' Q'+(CX-46)+' '+(HCY+60)+' '+(CX-38)+' '+(HCY+56)+' Q'+(CX-44)+' '+(HCY+28)+' '+(CX-40)+' '+(HCY+4)+' Z" fill="'+c+'"/>';
+      o+='<path d="M'+(CX+50)+' '+(HCY+5)+' Q'+(CX+58)+' '+(HCY+30)+' '+(CX+54)+' '+(HCY+55)+' Q'+(CX+46)+' '+(HCY+60)+' '+(CX+38)+' '+(HCY+56)+' Q'+(CX+44)+' '+(HCY+28)+' '+(CX+40)+' '+(HCY+4)+' Z" fill="'+c+'"/>';
+    }
+  } else {
+    // Base fille
+    o+='<ellipse cx="'+CX+'" cy="'+(HCY-14)+'" rx="53" ry="54" fill="'+c+'"/>';
+    // Styles avec cheveux longs
+    if(hs.id==='fh2'){ // Queue haute
+      o+='<path d="M'+(CX+33)+' '+(HCY-44)+' Q'+(CX+60)+' '+(HCY-50)+' '+(CX+76)+' '+(HCY-22)+' Q'+(CX+82)+' '+(HCY+8)+' '+(CX+70)+' '+(HCY+40)+' Q'+(CX+60)+' '+(HCY+44)+' '+(CX+52)+' '+(HCY+38)+' Q'+(CX+64)+' '+(HCY+6)+' '+(CX+58)+' '+(HCY-20)+' Q'+(CX+50)+' '+(HCY-40)+' '+(CX+35)+' '+(HCY-44)+' Z" fill="'+c+'"/>';
+    }
+    if(hs.id==='fh3'||hs.id==='fh7'){ // Long lisse / ondulé
+      o+='<path d="M'+(CX-51)+' '+(HCY+7)+' Q'+(CX-64)+' '+(HCY+65)+' '+(CX-58)+' '+(HCY+112)+' Q'+(CX-48)+' '+(HCY+118)+' '+(CX-38)+' '+(HCY+114)+' Q'+(CX-44)+' '+(HCY+62)+' '+(CX-40)+' '+(HCY+5)+' Z" fill="'+c+'"/>';
+      o+='<path d="M'+(CX+51)+' '+(HCY+7)+' Q'+(CX+64)+' '+(HCY+65)+' '+(CX+58)+' '+(HCY+112)+' Q'+(CX+48)+' '+(HCY+118)+' '+(CX+38)+' '+(HCY+114)+' Q'+(CX+44)+' '+(HCY+62)+' '+(CX+40)+' '+(HCY+5)+' Z" fill="'+c+'"/>';
+    }
+    if(hs.id==='fh4'){ // Nattes
+      o+='<path d="M'+(CX-40)+' '+(HCY+13)+' Q'+(CX-56)+' '+(HCY+46)+' '+(CX-52)+' '+(HCY+84)+' Q'+(CX-42)+' '+(HCY+108)+' '+(CX-34)+' '+(HCY+110)+' Q'+(CX-26)+' '+(HCY+108)+' '+(CX-28)+' '+(HCY+84)+' Q'+(CX-34)+' '+(HCY+46)+' '+(CX-28)+' '+(HCY+15)+' Z" fill="'+c+'"/>';
+      for(var bi=0;bi<4;bi++){o+='<ellipse cx="'+(CX-40)+'" cy="'+(HCY+26+bi*19)+'" rx="6.5" ry="4.5" fill="'+cd+'" opacity="0.33" transform="rotate('+(bi%2===0?11:-11)+' '+(CX-40)+' '+(HCY+26+bi*19)+')"/>';}
+      o+='<path d="M'+(CX+28)+' '+(HCY+15)+' Q'+(CX+34)+' '+(HCY+46)+' '+(CX+28)+' '+(HCY+84)+' Q'+(CX+26)+' '+(HCY+108)+' '+(CX+34)+' '+(HCY+110)+' Q'+(CX+42)+' '+(HCY+108)+' '+(CX+52)+' '+(HCY+84)+' Q'+(CX+56)+' '+(HCY+46)+' '+(CX+40)+' '+(HCY+13)+' Z" fill="'+c+'"/>';
+      for(var bi2=0;bi2<4;bi2++){o+='<ellipse cx="'+(CX+40)+'" cy="'+(HCY+26+bi2*19)+'" rx="6.5" ry="4.5" fill="'+cd+'" opacity="0.33" transform="rotate('+(bi2%2===0?-11:11)+' '+(CX+40)+' '+(HCY+26+bi2*19)+')"/>';}
+      o+='<circle cx="'+(CX-34)+'" cy="'+(HCY+110)+'" r="5.5" fill="#FF5588" opacity="0.9"/>';
+      o+='<circle cx="'+(CX+34)+'" cy="'+(HCY+110)+'" r="5.5" fill="#FF5588" opacity="0.9"/>';
+    }
+    if(hs.id==='fh5'){ // Boucles
+      [[CX-52,HCY+19,14,11],[CX-56,HCY+46,13,10],[CX-52,HCY+70,12,9],[CX+52,HCY+19,14,11],[CX+56,HCY+46,13,10],[CX+52,HCY+70,12,9]].forEach(function(cu,i){
+        o+='<ellipse cx="'+cu[0]+'" cy="'+cu[1]+'" rx="'+cu[2]+'" ry="'+cu[3]+'" fill="'+c+'" transform="rotate('+(i<3?-8:8)+' '+cu[0]+' '+cu[1]+')"/>';
+      });
+    }
+    if(hs.id==='fh6'){ // Chignon
+      o+='<ellipse cx="'+CX+'" cy="'+(HCY-60)+'" rx="20" ry="17" fill="'+c+'" filter="url(#FSS'+id+')"/>';
+      o+='<ellipse cx="'+CX+'" cy="'+(HCY-60)+'" rx="11" ry="8" fill="'+cd+'" opacity="0.26"/>';
+    }
+    if(hs.id==='fh7'){ // Ondulé — vagues
+      o+='<path d="M'+(CX-51)+' '+(HCY+7)+' Q'+(CX-66)+' '+(HCY+30)+' '+(CX-58)+' '+(HCY+54)+' Q'+(CX-50)+' '+(HCY+70)+' '+(CX-60)+' '+(HCY+90)+' Q'+(CX-52)+' '+(HCY+100)+' '+(CX-42)+' '+(HCY+98)+' Q'+(CX-38)+' '+(HCY+78)+' '+(CX-46)+' '+(HCY+62)+' Q'+(CX-52)+' '+(HCY+38)+' '+(CX-40)+' '+(HCY+12)+' Z" fill="'+c+'"/>';
+      o+='<path d="M'+(CX+51)+' '+(HCY+7)+' Q'+(CX+66)+' '+(HCY+30)+' '+(CX+58)+' '+(HCY+54)+' Q'+(CX+50)+' '+(HCY+70)+' '+(CX+60)+' '+(HCY+90)+' Q'+(CX+52)+' '+(HCY+100)+' '+(CX+42)+' '+(HCY+98)+' Q'+(CX+38)+' '+(HCY+78)+' '+(CX+46)+' '+(HCY+62)+' Q'+(CX+52)+' '+(HCY+38)+' '+(CX+40)+' '+(HCY+12)+' Z" fill="'+c+'"/>';
+    }
+  }
+  return o;
+}
+
+// ══ CHEVEUX DEVANT (frange + spécifique au style) ══
+function svgHairFront(id,hc,hs,ac,isMale){
+  var o='';
+  var c=hc.c, cl=lx(c,55), cd=dk(c,30);
+  var ty=HCY-HRY;
+  var noHat=ac.t!=='tophat'&&ac.t!=='beret';
+
+  if(!noHat){
+    // Avec chapeau : juste un léger volume de base
+    if(isMale){
+      o+='<path d="M'+(CX-HRX+6)+' '+(HCY-18)+' Q'+(CX-HRX+13)+' '+(ty+4)+' '+CX+' '+(ty+1)+' Q'+(CX+HRX-13)+' '+(ty+4)+' '+(CX+HRX-6)+' '+(HCY-18)+' Q'+(CX+16)+' '+(HCY-2)+' '+CX+' '+(HCY+2)+' Q'+(CX-16)+' '+(HCY-2)+' '+(CX-HRX+6)+' '+(HCY-18)+' Z" fill="'+c+'"/>';
+    }
+    return o;
+  }
+
+  if(isMale){
+    // Tout est dessiné dans svgHairBack pour les garçons (derrière la tête)
+    o+='<ellipse cx="'+(CX-14)+'" cy="'+(ty+16)+'" rx="12" ry="6.5" fill="'+lx(hc.c,55)+'" opacity="0.15" transform="rotate(-22 '+(CX-14)+' '+(ty+16)+')" />';
+    return o;
+  }
+
+  // ═══ STYLES FILLE ═══
+  // Frange de base pour tous
+    if(hs.id!=='fh8'){ // Pas pixie
+      o+='<path d="M'+(CX-HRX+5)+' '+(HCY-20)+' Q'+(CX-HRX+13)+' '+(ty+5)+' '+CX+' '+(ty+2)+' Q'+(CX+HRX-13)+' '+(ty+5)+' '+(CX+HRX-5)+' '+(HCY-20)+' Q'+(CX+24)+' '+(HCY-5)+' '+CX+' '+(HCY+1)+' Q'+(CX-24)+' '+(HCY-5)+' '+(CX-HRX+5)+' '+(HCY-20)+' Z" fill="'+c+'"/>';
+    } else { // Pixie — frange asymétrique courte
+      o+='<path d="M'+(CX-HRX+6)+' '+(HCY-18)+' Q'+(CX-HRX+14)+' '+(ty+5)+' '+CX+' '+(ty+2)+' Q'+(CX+HRX-14)+' '+(ty+5)+' '+(CX+HRX-6)+' '+(HCY-18)+' Q'+(CX+20)+' '+(HCY-3)+' '+CX+' '+(HCY+2)+' Q'+(CX-20)+' '+(HCY-3)+' '+(CX-HRX+6)+' '+(HCY-18)+' Z" fill="'+c+'"/>';
+      // Mèche pixie asymétrique
+      o+='<path d="M'+(CX+8)+' '+(ty+3)+' Q'+(CX+24)+' '+(ty-6)+' '+(CX+35)+' '+(ty+6)+' Q'+(CX+25)+' '+(ty+3)+' '+(CX+12)+' '+(ty+5)+' Z" fill="'+cl+'" opacity="0.55"/>';
+    }
+    // Élastique queue de cheval
+    if(hs.id==='fh2'){
+      o+='<circle cx="'+(CX+36)+'" cy="'+(HCY-42)+'" r="6" fill="'+lx(c,24)+'" opacity="0.9"/>';
+      o+='<circle cx="'+(CX+36)+'" cy="'+(HCY-42)+'" r="3.5" fill="'+dk(c,8)+'"/>';
+    }
+    // Épingles chignon
+    if(hs.id==='fh6'){
+      o+='<line x1="'+(CX-8)+'" y1="'+(HCY-70)+'" x2="'+(CX-6)+'" y2="'+(HCY-50)+'" stroke="'+cl+'" stroke-width="1.8" stroke-linecap="round" opacity="0.65"/>';
+      o+='<line x1="'+(CX+8)+'" y1="'+(HCY-70)+'" x2="'+(CX+6)+'" y2="'+(HCY-50)+'" stroke="'+cl+'" stroke-width="1.8" stroke-linecap="round" opacity="0.65"/>';
+    }
+    // Mèches latérales
+    o+='<path d="M'+(CX-HRX+7)+' '+(HCY-18)+' Q'+(CX-HRX+17)+' '+(HCY)+' '+(CX-HRX+22)+' '+(HCY+4)+' Q'+(CX-HRX+17)+' '+(HCY+1)+' '+(CX-HRX+11)+' '+(HCY-18)+' Z" fill="'+dk(c,22)+'" opacity="0.3"/>';
+    o+='<path d="M'+(CX+HRX-7)+' '+(HCY-18)+' Q'+(CX+HRX-17)+' '+(HCY)+' '+(CX+HRX-22)+' '+(HCY+4)+' Q'+(CX+HRX-17)+' '+(HCY+1)+' '+(CX+HRX-11)+' '+(HCY-18)+' Z" fill="'+dk(c,22)+'" opacity="0.3"/>';
+
+  // Reflet cheveux
+  o+='<ellipse cx="'+(CX-14)+'" cy="'+(ty+16)+'" rx="12" ry="6.5" fill="'+lx(hc.c,55)+'" opacity="0.15" transform="rotate(-22 '+(CX-14)+' '+(ty+16)+')"/>';
+  return o;
+}
+
+// ══ VISAGE — TOUTES LES EXPRESSIONS GÉRÉES PROPREMENT ══
+function svgFace(id,sk,hc,ec,expr,isMale){
+  var o='';
+
+  // ── Positions de base ──
+  var eyY=HCY+5;       // ligne des yeux
+  var eyLX=CX-17;      // centre œil gauche
+  var eyRX=CX+17;      // centre œil droit
+  var eW=12, eH=13;    // taille œil
+  var browY=eyY-eH-5;  // sourcils
+  var noseY=HCY+24;    // nez
+  var mouthY=HCY+38;   // bouche
+  var browC=dk(hc.c,5); // couleur sourcils
+
+  if(expr==='ex5'){ eyY-=3; browY-=3; } // Surpris — yeux remontés
+
+  // ── SOURCILS (communs à toutes expressions sauf ex2) ──
+  if(expr!=='ex2'){
+    if(expr==='ex3'){ // Sérieux — droits, légèrement froncés
+      o+='<line x1="'+(eyLX-eW)+'" y1="'+browY+'" x2="'+(eyLX+eW)+'" y2="'+browY+'" stroke="'+browC+'" stroke-width="3" stroke-linecap="round"/>';
+      o+='<line x1="'+(eyRX-eW)+'" y1="'+browY+'" x2="'+(eyRX+eW)+'" y2="'+browY+'" stroke="'+browC+'" stroke-width="3" stroke-linecap="round"/>';
+    } else if(expr==='ex5'){ // Surpris — très relevés et arqués
+      o+='<path d="M'+(eyLX-eW)+' '+(browY-8)+' Q'+eyLX+' '+(browY-16)+' '+(eyLX+eW)+' '+(browY-8)+'" stroke="'+browC+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+      o+='<path d="M'+(eyRX-eW)+' '+(browY-8)+' Q'+eyRX+' '+(browY-16)+' '+(eyRX+eW)+' '+(browY-8)+'" stroke="'+browC+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    } else { // Normal / Clin d'œil — arqués naturellement
+      o+='<path d="M'+(eyLX-eW)+' '+(browY+2)+' Q'+eyLX+' '+(browY-7)+' '+(eyLX+eW)+' '+(browY+2)+'" stroke="'+browC+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+      o+='<path d="M'+(eyRX-eW)+' '+(browY+2)+' Q'+eyRX+' '+(browY-7)+' '+(eyRX+eW)+' '+(browY+2)+'" stroke="'+browC+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    }
+  }
+
+  // ── YEUX selon expression ──
+  if(expr==='ex2'){ // Joyeux — yeux fermés en croissant + joues relevées + sourcils joyeux
+    // Sourcils joyeux
+    o+='<path d="M'+(eyLX-eW)+' '+(browY+2)+' Q'+eyLX+' '+(browY-8)+' '+(eyLX+eW)+' '+(browY+2)+'" stroke="'+browC+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    o+='<path d="M'+(eyRX-eW)+' '+(browY+2)+' Q'+eyRX+' '+(browY-8)+' '+(eyRX+eW)+' '+(browY+2)+'" stroke="'+browC+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    // Yeux fermés courbés — arc vers le bas
+    o+='<path d="M'+(eyLX-eW)+' '+eyY+' Q'+eyLX+' '+(eyY+eH*.7)+' '+(eyLX+eW)+' '+eyY+'" stroke="'+dk(hc.c,8)+'" stroke-width="3.2" fill="none" stroke-linecap="round"/>';
+    o+='<path d="M'+(eyRX-eW)+' '+eyY+' Q'+eyRX+' '+(eyRX+eH*.7)+' '+(eyRX+eW)+' '+eyY+'" stroke="'+dk(hc.c,8)+'" stroke-width="3.2" fill="none" stroke-linecap="round"/>';
+    // Petite ligne sous l'œil (joue relevée)
+    o+='<path d="M'+(eyLX-6)+' '+(eyY+eH*.6)+' Q'+eyLX+' '+(eyY+eH*.8)+' '+(eyLX+6)+' '+(eyY+eH*.6)+'" stroke="#FF8FAA" stroke-width="1.5" fill="none" opacity="0.5" stroke-linecap="round"/>';
+    o+='<path d="M'+(eyRX-6)+' '+(eyY+eH*.6)+' Q'+eyRX+' '+(eyY+eH*.8)+' '+(eyRX+6)+' '+(eyY+eH*.6)+'" stroke="#FF8FAA" stroke-width="1.5" fill="none" opacity="0.5" stroke-linecap="round"/>';
+  } else if(expr==='ex4'){ // Clin d'œil — œil gauche fermé, droit ouvert
+    // Œil droit ouvert normal
+    o+=drawOneEye(id,ec,hc,eyRX,eyY,eW,eH);
+    // Œil gauche fermé
+    o+='<path d="M'+(eyLX-eW)+' '+eyY+' Q'+eyLX+' '+(eyY-eH*.6)+' '+(eyLX+eW)+' '+eyY+'" stroke="'+dk(hc.c,8)+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    // Cils fermés
+    o+='<path d="M'+(eyLX-eW)+' '+eyY+' Q'+eyLX+' '+(eyY-eH)+' '+(eyLX+eW)+' '+eyY+'" stroke="'+dk(hc.c,8)+'" stroke-width="2.5" fill="none" stroke-linecap="round"/>';
+  } else if(expr==='ex5'){ // Surpris — yeux très ouverts
+    o+=drawOneEye(id,ec,hc,eyLX,eyY,eW+3,eH+4);
+    o+=drawOneEye(id,ec,hc,eyRX,eyY,eW+3,eH+4);
+  } else { // Normal et Sérieux — yeux standard
+    o+=drawOneEye(id,ec,hc,eyLX,eyY,eW,eH);
+    o+=drawOneEye(id,ec,hc,eyRX,eyY,eW,eH);
+  }
+
+  // Cils (toutes expressions sauf ex2 et ex4 gauche)
+  if(expr!=='ex2'){
+    if(expr!=='ex4'){
+      o+='<path d="M'+(eyLX-eW)+' '+(eyY-eH+3)+' Q'+eyLX+' '+(eyY-eH-4)+' '+(eyLX+eW)+' '+(eyY-eH+3)+'" stroke="'+dk(hc.c,8)+'" stroke-width="2.5" fill="none" stroke-linecap="round"/>';
+    }
+    o+='<path d="M'+(eyRX-eW)+' '+(eyY-eH+3)+' Q'+eyRX+' '+(eyY-eH-4)+' '+(eyRX+eW)+' '+(eyY-eH+3)+'" stroke="'+dk(hc.c,8)+'" stroke-width="2.5" fill="none" stroke-linecap="round"/>';
+  }
+
+  // ── NEZ ──
+  o+='<path d="M'+(CX-4)+' '+noseY+' Q'+CX+' '+(noseY+6)+' '+(CX+4)+' '+noseY+'" stroke="'+dk(sk.c,30)+'" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.45"/>';
+
+  // ── BOUCHE selon expression ──
+  if(expr==='ex1'||expr==='ex4'){ // Souriant
+    o+='<path d="M'+(CX-12)+' '+mouthY+' Q'+CX+' '+(mouthY+9)+' '+(CX+12)+' '+mouthY+'" stroke="#C03060" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
+    o+='<path d="M'+(CX-10)+' '+mouthY+' Q'+CX+' '+(mouthY+9)+' '+(CX+10)+' '+mouthY+' Q'+CX+' '+(mouthY+5)+' '+(CX-10)+' '+mouthY+' Z" fill="#E06080" opacity="0.18"/>';
+    o+='<path d="M'+(CX-8)+' '+mouthY+' Q'+CX+' '+(mouthY+6)+' '+(CX+8)+' '+mouthY+' Q'+CX+' '+(mouthY+3)+' '+(CX-8)+' '+mouthY+' Z" fill="white" opacity="0.5"/>';
+    o+='<circle cx="'+(CX-11)+'" cy="'+(mouthY+1)+'" r="1.8" fill="'+sk.sh+'" opacity="0.2"/>';
+    o+='<circle cx="'+(CX+11)+'" cy="'+(mouthY+1)+'" r="1.8" fill="'+sk.sh+'" opacity="0.2"/>';
+  } else if(expr==='ex2'){ // Joyeux — grand sourire
+    o+='<path d="M'+(CX-15)+' '+(mouthY-2)+' Q'+CX+' '+(mouthY+12)+' '+(CX+15)+' '+(mouthY-2)+'" stroke="#C03060" stroke-width="2.8" fill="none" stroke-linecap="round"/>';
+    o+='<path d="M'+(CX-12)+' '+(mouthY-1)+' Q'+CX+' '+(mouthY+11)+' '+(CX+12)+' '+(mouthY-1)+' Q'+CX+' '+(mouthY+6)+' '+(CX-12)+' '+(mouthY-1)+' Z" fill="white" opacity="0.5"/>';
+    o+='<path d="M'+(CX-12)+' '+(mouthY-1)+' Q'+CX+' '+(mouthY+12)+' '+(CX+12)+' '+(mouthY-1)+' Q'+CX+' '+(mouthY+5)+' '+(CX-12)+' '+(mouthY-1)+' Z" fill="#E06080" opacity="0.17"/>';
+  } else if(expr==='ex3'){ // Sérieux
+    o+='<path d="M'+(CX-9)+' '+mouthY+' Q'+CX+' '+(mouthY+2)+' '+(CX+9)+' '+mouthY+'" stroke="#A02848" stroke-width="2" fill="none" stroke-linecap="round"/>';
+  } else if(expr==='ex5'){ // Surpris
+    o+='<ellipse cx="'+CX+'" cy="'+(mouthY+3)+'" rx="7.5" ry="9.5" fill="#C03060" opacity="0.88"/>';
+    o+='<ellipse cx="'+CX+'" cy="'+(mouthY+4)+'" rx="5" ry="7" fill="#180208"/>';
+    o+='<ellipse cx="'+CX+'" cy="'+(mouthY+3)+'" rx="7.5" ry="9.5" fill="none" stroke="#8A1830" stroke-width="1.2" opacity="0.45"/>';
+  }
+
+  return o;
+}
+
+function drawOneEye(id,ec,hc,cx,cy,ew,eh){
+  var o='';
+  // Blanc
+  o+='<ellipse cx="'+cx+'" cy="'+cy+'" rx="'+(ew+1)+'" ry="'+(eh+1)+'" fill="white" filter="url(#FSS'+id+')"/>';
+  // Iris
+  o+='<ellipse cx="'+cx+'" cy="'+(cy+1)+'" rx="'+ew+'" ry="'+eh+'" fill="url(#EY'+id+')"/>';
+  // Pupille
+  o+='<ellipse cx="'+(cx+1)+'" cy="'+(cy+1)+'" rx="'+(ew-4)+'" ry="'+(eh-4)+'" fill="#040810"/>';
+  // Reflet principal
+  o+='<circle cx="'+(cx+4)+'" cy="'+(cy-4)+'" r="4" fill="white" opacity="0.92"/>';
+  o+='<circle cx="'+(cx+2)+'" cy="'+(cy-5.5)+'" r="1.6" fill="white"/>';
+  // Reflet secondaire petit
+  o+='<circle cx="'+(cx-4)+'" cy="'+(cy+4)+'" r="1.8" fill="white" opacity="0.22"/>';
+  return o;
+}
+
+// ══ ACCESSOIRE TÊTE ══
+function svgAcc(id,ac,hc,sk){
+  var o='';
+  if(!ac||ac.t==='none') return o;
+  var c=ac.c||'#1C1C3A';
+  var ty=HCY-HRY;
+
+  if(ac.t==='tophat'){
+    o+='<ellipse cx="'+CX+'" cy="'+(ty+13)+'" rx="62" ry="12" fill="'+dk(c,12)+'"/>';
+    o+='<rect x="'+(CX-38)+'" y="'+(ty-48)+'" width="76" height="61" rx="9" fill="'+c+'"/>';
+    o+='<rect x="'+(CX-38)+'" y="'+(ty-48)+'" width="76" height="61" rx="9" fill="none" stroke="'+lx(c,14)+'" stroke-width="1.4" opacity="0.3"/>';
+    o+='<rect x="'+(CX-38)+'" y="'+(ty+3)+'" width="76" height="12" rx="4" fill="'+dk(c,26)+'"/>';
+    o+='<rect x="'+(CX-38)+'" y="'+(ty-6)+'" width="76" height="6" rx="2" fill="'+hc.c+'" opacity="0.4"/>';
+  }
+  if(ac.t==='beret'){
+    o+='<ellipse cx="'+CX+'" cy="'+(ty+9)+'" rx="58" ry="11" fill="'+dk(c,18)+'"/>';
+    o+='<path d="M'+(CX-58)+' '+(ty+9)+' Q'+(CX-46)+' '+(ty-40)+' '+CX+' '+(ty-46)+' Q'+(CX+46)+' '+(ty-40)+' '+(CX+58)+' '+(ty+9)+' Q'+CX+' '+(ty-26)+' '+(CX-58)+' '+(ty+9)+' Z" fill="'+c+'"/>';
+    o+='<circle cx="'+(CX+18)+'" cy="'+(ty-38)+'" r="7" fill="'+dk(c,30)+'"/>';
+    o+='<circle cx="'+(CX+18)+'" cy="'+(ty-38)+'" r="4" fill="'+dk(c,46)+'" opacity="0.7"/>';
+  }
+  if(ac.t==='crown'){
+    o+='<path d="M'+(CX-46)+' '+(ty+8)+' L'+(CX-32)+' '+(ty-20)+' L'+(CX-14)+' '+(ty-3)+' L'+CX+' '+(ty-30)+' L'+(CX+14)+' '+(ty-3)+' L'+(CX+32)+' '+(ty-20)+' L'+(CX+46)+' '+(ty+8)+' Z" fill="'+c+'" filter="url(#FGW'+id+')"/>';
+    o+='<rect x="'+(CX-46)+'" y="'+(ty+2)+'" width="92" height="12" rx="5" fill="'+c+'"/>';
+    ['#E84040','#F8F8FF','#4888E8','#40C050','#E84040'].forEach(function(gc,i){
+      var px=CX-32+i*16, py=[ty-16,ty-26,ty-32,ty-26,ty-16][i];
+      o+='<circle cx="'+px+'" cy="'+py+'" r="6" fill="'+gc+'"/>';
+      o+='<circle cx="'+(px-2)+'" cy="'+(py-2)+'" r="2.2" fill="white" opacity="0.65"/>';
+    });
+  }
+  if(ac.t==='glasses'){
+    var gy=HCY+5;
+    o+='<rect x="'+(CX-36)+'" y="'+(gy-10)+'" width="30" height="21" rx="7.5" fill="'+c+'" opacity="0.07"/>';
+    o+='<rect x="'+(CX-36)+'" y="'+(gy-10)+'" width="30" height="21" rx="7.5" fill="none" stroke="'+c+'" stroke-width="2.2"/>';
+    o+='<rect x="'+(CX+6)+'" y="'+(gy-10)+'" width="30" height="21" rx="7.5" fill="'+c+'" opacity="0.07"/>';
+    o+='<rect x="'+(CX+6)+'" y="'+(gy-10)+'" width="30" height="21" rx="7.5" fill="none" stroke="'+c+'" stroke-width="2.2"/>';
+    o+='<path d="M'+(CX-6)+' '+gy+' Q'+CX+' '+(gy-2)+' '+(CX+6)+' '+gy+'" stroke="'+c+'" stroke-width="2" fill="none"/>';
+    o+='<path d="M'+(CX-36)+' '+gy+' Q'+(CX-50)+' '+(gy-2)+' '+(CX-54)+' '+(gy+7)+'" stroke="'+c+'" stroke-width="2" fill="none" stroke-linecap="round"/>';
+    o+='<path d="M'+(CX+36)+' '+gy+' Q'+(CX+50)+' '+(gy-2)+' '+(CX+54)+' '+(gy+7)+'" stroke="'+c+'" stroke-width="2" fill="none" stroke-linecap="round"/>';
+  }
+  if(ac.t==='phones'){
+    o+='<path d="M'+(CX-HRX-2)+' '+HCY+' Q'+(CX-HRX-4)+' '+(HCY-54)+' '+(CX-HRX+10)+' '+(ty+7)+'" stroke="'+c+'" stroke-width="5" fill="none" stroke-linecap="round"/>';
+    o+='<path d="M'+(CX+HRX+2)+' '+HCY+' Q'+(CX+HRX+4)+' '+(HCY-54)+' '+(CX+HRX-10)+' '+(ty+7)+'" stroke="'+c+'" stroke-width="5" fill="none" stroke-linecap="round"/>';
+    o+='<path d="M'+(CX-HRX+10)+' '+(ty+7)+' Q'+CX+' '+(ty-1)+' '+(CX+HRX-10)+' '+(ty+7)+'" stroke="'+c+'" stroke-width="5" fill="none"/>';
+    o+='<rect x="'+(CX-HRX-11)+'" y="'+(HCY-12)+'" width="22" height="27" rx="9" fill="'+c+'"/>';
+    o+='<rect x="'+(CX+HRX-11)+'" y="'+(HCY-12)+'" width="22" height="27" rx="9" fill="'+c+'"/>';
+    o+='<rect x="'+(CX-HRX-7)+'" y="'+(HCY-8)+'" width="14" height="19" rx="6" fill="'+dk(c,38)+'"/>';
+    o+='<rect x="'+(CX+HRX-7)+'" y="'+(HCY-8)+'" width="14" height="19" rx="6" fill="'+dk(c,38)+'"/>';
+  }
+  if(ac.t==='halo'){
+    o+='<ellipse cx="'+CX+'" cy="'+(ty-10)+'" rx="36" ry="9" fill="none" stroke="'+c+'" stroke-width="5.5" filter="url(#FGW'+id+')" opacity="0.9"/>';
+    o+='<ellipse cx="'+CX+'" cy="'+(ty-10)+'" rx="36" ry="9" fill="none" stroke="'+lx(c,38)+'" stroke-width="2.5" opacity="0.55"/>';
+  }
+  if(ac.t==='catears'){
+    o+='<path d="M'+(CX-42)+' '+(ty+5)+' L'+(CX-56)+' '+(ty-30)+' L'+(CX-24)+' '+(ty-6)+' Z" fill="'+c+'"/>';
+    o+='<path d="M'+(CX-42)+' '+(ty+5)+' L'+(CX-52)+' '+(ty-23)+' L'+(CX-26)+' '+(ty-5)+' Z" fill="'+lx(c,40)+'" opacity="0.55"/>';
+    o+='<path d="M'+(CX+42)+' '+(ty+5)+' L'+(CX+56)+' '+(ty-30)+' L'+(CX+24)+' '+(ty-6)+' Z" fill="'+c+'"/>';
+    o+='<path d="M'+(CX+42)+' '+(ty+5)+' L'+(CX+52)+' '+(ty-23)+' L'+(CX+26)+' '+(ty-5)+' Z" fill="'+lx(c,40)+'" opacity="0.55"/>';
+  }
+  return o;
+}
+
+// ══ EXTRA CORPS ══
+function svgExtra(id,ex,ot){
+  var o='';
+  if(!ex||!ex.t) return o;
+  if(ex.t==='bowtie'){
+    var c=ex.c, by=BT+2;
+    o+='<path d="M'+(CX-17)+' '+by+' Q'+(CX-8)+' '+(by-8)+' '+CX+' '+by+' Q'+(CX-8)+' '+(by+7)+' '+(CX-17)+' '+by+' Z" fill="'+c+'"/>';
+    o+='<path d="M'+(CX+17)+' '+by+' Q'+(CX+8)+' '+(by-8)+' '+CX+' '+by+' Q'+(CX+8)+' '+(by+7)+' '+(CX+17)+' '+by+' Z" fill="'+c+'"/>';
+    o+='<circle cx="'+CX+'" cy="'+by+'" r="4.5" fill="'+lx(c,18)+'"/>';
+  }
+  if(ex.t==='cape'){
+    var cc=ex.c;
+    o+='<path d="M'+(CX-BHW+2)+' '+(BT+12)+' Q'+(CX-BHW-18)+' '+(BT+75)+' '+(CX-BHW-14)+' '+BB+' Q'+CX+' '+(BB+8)+' '+(CX+BHW+14)+' '+BB+' Q'+(CX+BHW+18)+' '+(BT+75)+' '+(CX+BHW-2)+' '+(BT+12)+' Q'+CX+' '+(BT+6)+' '+(CX-BHW+2)+' '+(BT+12)+' Z" fill="'+cc+'" opacity="0.85"/>';
+    o+='<circle cx="'+CX+'" cy="'+(BT+8)+'" r="7" fill="'+lx(cc,14)+'"/>';
+    o+='<circle cx="'+CX+'" cy="'+(BT+8)+'" r="4.2" fill="'+lx(cc,30)+'" opacity="0.7"/>';
+  }
+  if(ex.t==='wings'){
+    var wc=ex.c;
+    o+='<path d="M'+(CX-BHW)+' '+(BT+26)+' Q'+(CX-88)+' '+(BT+6)+' '+(CX-105)+' '+(BT+42)+' Q'+(CX-96)+' '+(BT+70)+' '+(CX-68)+' '+(BT+80)+' Q'+(CX-BHW-6)+' '+(BT+62)+' '+(CX-BHW)+' '+(BT+26)+' Z" fill="'+wc+'" opacity="0.82"/>';
+    o+='<path d="M'+(CX-BHW)+' '+(BT+26)+' Q'+(CX-88)+' '+(BT+6)+' '+(CX-105)+' '+(BT+42)+' Q'+(CX-96)+' '+(BT+70)+' '+(CX-68)+' '+(BT+80)+' Q'+(CX-BHW-6)+' '+(BT+62)+' '+(CX-BHW)+' '+(BT+26)+' Z" fill="none" stroke="'+dk(wc,25)+'" stroke-width="1.3" opacity="0.4"/>';
+    o+='<path d="M'+(CX+BHW)+' '+(BT+26)+' Q'+(CX+88)+' '+(BT+6)+' '+(CX+105)+' '+(BT+42)+' Q'+(CX+96)+' '+(BT+70)+' '+(CX+68)+' '+(BT+80)+' Q'+(CX+BHW+6)+' '+(BT+62)+' '+(CX+BHW)+' '+(BT+26)+' Z" fill="'+wc+'" opacity="0.82"/>';
+    o+='<path d="M'+(CX+BHW)+' '+(BT+26)+' Q'+(CX+88)+' '+(BT+6)+' '+(CX+105)+' '+(BT+42)+' Q'+(CX+96)+' '+(BT+70)+' '+(CX+68)+' '+(BT+80)+' Q'+(CX+BHW+6)+' '+(BT+62)+' '+(CX+BHW)+' '+(BT+26)+' Z" fill="none" stroke="'+dk(wc,25)+'" stroke-width="1.3" opacity="0.4"/>';
+  }
+  if(ex.t==='medal'){
+    var mc=ex.c;
+    o+='<line x1="'+CX+'" y1="'+(BT+28)+'" x2="'+CX+'" y2="'+(BT+53)+'" stroke="'+mc+'" stroke-width="2.5" opacity="0.78"/>';
+    o+='<circle cx="'+CX+'" cy="'+(BT+61)+'" r="12" fill="'+mc+'" filter="url(#FSS'+id+')" opacity="0.95"/>';
+    o+='<circle cx="'+CX+'" cy="'+(BT+61)+'" r="8.5" fill="'+lx(mc,26)+'"/>';
+    o+='<text x="'+CX+'" y="'+(BT+65)+'" font-size="9.5" fill="'+dk(mc,36)+'" text-anchor="middle" font-weight="900">★</text>';
+  }
+  if(ex.t==='notes'){
+    var nc=ex.c;
+    [{x:CX-80,y:BT+20,s:'♪',d:'2.2s'},{x:CX+80,y:BT+33,s:'♫',d:'2.8s'},{x:CX-74,y:BT+66,s:'♩',d:'3.2s'},{x:CX+76,y:BT+62,s:'♬',d:'2.5s'}].forEach(function(n){
+      o+='<text x="'+n.x+'" y="'+n.y+'" font-size="14" fill="'+nc+'" opacity="0.8" font-family="serif" text-anchor="middle">';
+      o+=n.s;
+      o+='<animate attributeName="opacity" values="0.8;0.14;0.8" dur="'+n.d+'" repeatCount="indefinite"/>';
+      o+='<animateTransform attributeName="transform" type="translate" values="0,0;0,-11;0,0" dur="'+n.d+'" repeatCount="indefinite"/>';
+      o+='</text>';
+    });
+  }
+  return o;
+}
+
+// ══ INSTRUMENTS ══
+function svgInstrument(id,it){
+  var o=''; var c=it.c;
+  var hw=BHW;
+  // Position poignet gauche (tenant l'instrument)
+  var wx=CX-hw-30, wy=SY+90;
+
+  if(it.t==='flute'){
+    o+='<g transform="rotate(-28 '+wx+' '+wy+')" filter="url(#FIS'+id+')">';
+    o+='<rect x="'+(wx-14)+'" y="'+(wy-4.5)+'" width="104" height="9" rx="4.5" fill="url(#GFL'+id+')"/>';
+    o+='<rect x="'+(wx-14)+'" y="'+(wy-4.5)+'" width="104" height="9" rx="4.5" fill="none" stroke="#707080" stroke-width="0.7"/>';
+    o+='<rect x="'+(wx-14)+'" y="'+(wy-4.5)+'" width="19" height="9" rx="4.5" fill="#909098"/>';
+    o+='<ellipse cx="'+(wx+5)+'" cy="'+wy+'" rx="4.2" ry="3" fill="#383840" opacity="0.9"/>';
+    o+='<rect x="'+(wx+4)+'" y="'+(wy-4.5)+'" width="4.5" height="9" fill="#808090"/>';
+    [wx+15,wx+25,wx+36,wx+48,wx+60,wx+72].forEach(function(x){
+      o+='<ellipse cx="'+x+'" cy="'+(wy-1)+'" rx="3.8" ry="3.8" fill="#B0B0C0"/>';
+      o+='<ellipse cx="'+x+'" cy="'+(wy-1)+'" rx="2.8" ry="2.8" fill="#383840"/>';
+      o+='<ellipse cx="'+x+'" cy="'+(wy-1)+'" rx="1.8" ry="1.8" fill="#202028"/>';
+    });
+    o+='<rect x="'+(wx-14)+'" y="'+(wy-4.5)+'" width="104" height="2" rx="1" fill="white" opacity="0.2"/>';
+    o+='</g>';
+  }
+  else if(it.t==='violin'){
+    o+='<g transform="translate('+(wx-8)+','+(wy-80)+') rotate(-13)" filter="url(#FIS'+id+')">';
+    o+='<path d="M19 0 Q32-7 40 5 Q47 17 42 29 Q49 41 42 55 Q32 62 19 55 Q8 41 14 29 Q7 17 14 5 Z" fill="url(#GVL'+id+')"/>';
+    o+='<path d="M19 0 Q32-7 40 5 Q47 17 42 29 Q49 41 42 55 Q32 62 19 55 Q8 41 14 29 Q7 17 14 5 Z" fill="none" stroke="'+dk('#8B4513',38)+'" stroke-width="1.7"/>';
+    o+='<path d="M14 20 Q16 15 17 20 Q16 25 14 20 Z M36 20 Q34 15 33 20 Q34 25 36 20 Z" stroke="'+dk('#8B4513',52)+'" stroke-width="1.3" fill="none"/>';
+    o+='<ellipse cx="25" cy="49" rx="5" ry="2.2" fill="'+dk('#8B4513',50)+'"/>';
+    o+='<path d="M20 29 L22 35 L24 35 L22 40 M22 40 L25 40 L27 35 L27 29" stroke="'+lx('#8B4513',14)+'" stroke-width="1.1" fill="none"/>';
+    o+='<rect x="22" y="-28" width="6" height="31" rx="3" fill="'+dk('#8B4513',22)+'"/>';
+    o+='<path d="M23-28 Q20-37 24-42 Q28-44 30-39 Q31-33 29-28" stroke="'+dk('#8B4513',27)+'" stroke-width="4.2" fill="none" stroke-linecap="round"/>';
+    [0,1,2,3].forEach(function(i){o+='<line x1="'+(22+i*2)+'" y1="-26" x2="'+(22+i*1.8)+'" y2="50" stroke="'+lx('#8B4513',55)+'" stroke-width="'+(0.55+i*.1)+'" opacity="0.7"/>';});
+    o+='<line x1="46" y1="-5" x2="54" y2="61" stroke="'+dk('#8B4513',23)+'" stroke-width="3.5" stroke-linecap="round"/>';
+    o+='<line x1="45" y1="-3" x2="53" y2="59" stroke="white" stroke-width="1.3" opacity="0.45"/>';
+    o+='</g>';
+  }
+  else if(it.t==='guitar'){
+    o+='<g transform="translate('+(wx-4)+','+(wy-84)+') rotate(-8)" filter="url(#FIS'+id+')">';
+    o+='<path d="M22 40 Q5 34 3 47 Q1 62 15 69 Q29 77 45 71 Q55 63 53 49 Q51 35 34 40 Z" fill="url(#GGT'+id+')"/>';
+    o+='<path d="M22 40 Q7 32 7 20 Q7 6 20 6 Q27 11 29 15 Q31 11 37 6 Q51 8 51 20 Q51 34 34 40 Z" fill="url(#GGT'+id+')"/>';
+    o+='<path d="M22 40 Q5 34 3 47 Q1 62 15 69 Q29 77 45 71 Q55 63 53 49 Q51 35 34 40 Q51 34 51 20 Q51 8 37 6 Q31 11 29 15 Q27 11 20 6 Q7 8 7 20 Q7 34 22 40 Z" fill="none" stroke="'+lx('#C07010',26)+'" stroke-width="2" opacity="0.48"/>';
+    o+='<circle cx="28" cy="37" r="8.5" fill="'+dk('#C07010',42)+'" opacity="0.65"/>';
+    o+='<circle cx="28" cy="37" r="5.5" fill="'+dk('#C07010',55)+'" opacity="0.5"/>';
+    o+='<rect x="25" y="-44" width="7.5" height="54" rx="3.8" fill="'+dk('#C07010',27)+'"/>';
+    [-32,-20,-8,4].forEach(function(y){o+='<line x1="25" y1="'+y+'" x2="32" y2="'+y+'" stroke="'+lx('#C07010',36)+'" stroke-width="1.2" opacity="0.52"/>';});
+    [0,1.2,2.4,3.6,4.8,6].forEach(function(k){o+='<line x1="'+(26+k)+'" y1="-42" x2="'+(26+k)+'" y2="65" stroke="'+lx('#C07010',48)+'" stroke-width="0.58" opacity="0.62"/>';});
+    o+='</g>';
+  }
+  else if(it.t==='piano'){
+    o+='<g transform="translate('+(CX-47)+','+(BT+74)+') rotate(-4)" filter="url(#FIS'+id+')">';
+    o+='<rect x="0" y="0" width="86" height="37" rx="6" fill="#0E0E1E"/>';
+    o+='<rect x="0" y="0" width="86" height="37" rx="6" fill="none" stroke="#282838" stroke-width="1.8"/>';
+    o+='<rect x="0" y="0" width="86" height="5" rx="3" fill="#1A1A2E"/>';
+    for(var k=0;k<7;k++){o+='<rect x="'+(2+k*11.8)+'" y="5" width="10.8" height="25" rx="2" fill="white"/><rect x="'+(2+k*11.8)+'" y="5" width="10.8" height="25" rx="2" fill="none" stroke="#CCC" stroke-width="0.6"/>';}
+    [8,18,42,52,63].forEach(function(x){o+='<rect x="'+x+'" y="5" width="8" height="16" rx="2" fill="#0A0A0A"/><rect x="'+(x+1)+'" y="5" width="3.5" height="7" rx="1" fill="#282828" opacity="0.5"/>';});
+    o+='</g>';
+  }
+  else if(it.t==='trumpet'){
+    o+='<g transform="translate('+(wx+2)+','+(wy-24)+') rotate(-10)" filter="url(#FIS'+id+')">';
+    o+='<path d="M0 6 Q4 0 13 2 Q56-1 70 5 Q76 3 84 7 Q76 11 70 13 Q56 15 13 12 Q4 14 0 10 Z" fill="url(#GTR'+id+')"/>';
+    o+='<path d="M2 6 Q11 2 68 4" stroke="white" stroke-width="1.1" fill="none" opacity="0.18" stroke-linecap="round"/>';
+    o+='<ellipse cx="84" cy="8" rx="11.5" ry="8" fill="none" stroke="url(#GTR'+id+')" stroke-width="6"/>';
+    o+='<ellipse cx="84" cy="8" rx="16" ry="12.5" fill="none" stroke="'+dk('#D4A017',20)+'" stroke-width="1.8"/>';
+    [22,34,48].forEach(function(x){
+      o+='<rect x="'+x+'" y="-4" width="8.5" height="13" rx="3.2" fill="'+lx('#D4A017',5)+'"/>';
+      o+='<rect x="'+(x+1)+'" y="-3" width="6.5" height="6.5" rx="2.5" fill="'+dk('#D4A017',30)+'"/>';
+    });
+    o+='<ellipse cx="0" cy="8" rx="5.2" ry="4.2" fill="'+lx('#D4A017',22)+'" stroke="'+dk('#D4A017',20)+'" stroke-width="1.4"/>';
+    o+='</g>';
+  }
+  else if(it.t==='harp'){
+    o+='<g transform="translate('+(CX-38)+','+(BT+34)+') scale(0.82)" filter="url(#FIS'+id+')">';
+    o+='<path d="M10 116 Q0 57 20 8 Q28 0 38 4 Q44 7 42 14 Q32 17 28 116 Z" fill="url(#GHP'+id+')"/>';
+    o+='<path d="M10 112 Q4 60 21 16" stroke="'+lx('#D4A017',38)+'" stroke-width="1.7" fill="none" opacity="0.26" stroke-linecap="round"/>';
+    o+='<path d="M20 8 Q38-5 58 4 Q48 5 42 14 Q38 9 28 10 Z" fill="'+lx('#D4A017',15)+'" opacity="0.9"/>';
+    o+='<path d="M10 116 Q17 125 38 123 Q52 121 56 116 Q44 112 28 114 Z" fill="'+dk('#D4A017',17)+'" opacity="0.9"/>';
+    for(var ci=0;ci<7;ci++){
+      var cx1=12+ci*2.4,cy1=108-ci*11,cx2=46-ci*4,cy2=14+ci*4.2;
+      o+='<line x1="'+cx1+'" y1="'+cy1+'" x2="'+cx2+'" y2="'+cy2+'" stroke="'+lx('#D4A017',56)+'" stroke-width="1.1" opacity="'+(0.55+ci*.04)+'"/>';
+      o+='<circle cx="'+cx2+'" cy="'+cy2+'" r="1.8" fill="'+dk('#D4A017',26)+'"/>';
+    }
+    o+='</g>';
+  }
+  else if(it.t==='cello'){
+    o+='<g transform="translate('+(wx-12)+','+(wy-98)+') rotate(-10) scale(0.92)" filter="url(#FIS'+id+')">';
+    o+='<path d="M23 0 Q36-8 46 6 Q54 19 48 34 Q57 48 48 65 Q36 74 23 65 Q11 50 18 34 Q9 19 17 6 Z" fill="url(#GVL'+id+')"/>';
+    o+='<path d="M23 0 Q36-8 46 6 Q54 19 48 34 Q57 48 48 65 Q36 74 23 65 Q11 50 18 34 Q9 19 17 6 Z" fill="none" stroke="'+dk('#8B4513',36)+'" stroke-width="1.9"/>';
+    o+='<path d="M18 26 Q20 21 21 26 Q20 31 18 26 Z M40 26 Q38 21 37 26 Q38 31 40 26 Z" stroke="'+dk('#8B4513',50)+'" stroke-width="1.3" fill="none"/>';
+    o+='<ellipse cx="29" cy="59" rx="5.2" ry="2.4" fill="'+dk('#8B4513',48)+'"/>';
+    o+='<rect x="25" y="-32" width="6.5" height="36" rx="3.2" fill="'+dk('#8B4513',22)+'"/>';
+    o+='<path d="M26-32 Q23-41 27-47 Q31-49 33-44 Q34-38 32-32" stroke="'+dk('#8B4513',26)+'" stroke-width="4.3" fill="none" stroke-linecap="round"/>';
+    [0,1,2,3].forEach(function(i){o+='<line x1="'+(25+i*2.1)+'" y1="-30" x2="'+(25+i*1.9)+'" y2="61" stroke="'+lx('#8B4513',53)+'" stroke-width="'+(0.58+i*.1)+'" opacity="0.68"/>';});
+    o+='<line x1="51" y1="-9" x2="61" y2="75" stroke="'+dk('#8B4513',23)+'" stroke-width="4" stroke-linecap="round"/>';
+    o+='<line x1="50" y1="-7" x2="60" y2="73" stroke="white" stroke-width="1.3" opacity="0.42"/>';
+    o+='</g>';
+  }
+  else if(it.t==='clarinet'){
+    o+='<g transform="rotate(-28 '+wx+' '+wy+')" filter="url(#FIS'+id+')">';
+    o+='<rect x="'+(wx-9)+'" y="'+(wy-4)+'" width="7.5" height="8" rx="1.8" fill="#282828"/>';
+    o+='<rect x="'+(wx-1.5)+'" y="'+(wy-4.5)+'" width="20" height="9" rx="2.8" fill="url(#GCL'+id+')"/>';
+    o+='<rect x="'+(wx+18.5)+'" y="'+(wy-5)+'" width="27" height="10" rx="2.8" fill="url(#GCL'+id+')"/>';
+    o+='<rect x="'+(wx+45.5)+'" y="'+(wy-5)+'" width="25" height="10" rx="2.8" fill="url(#GCL'+id+')"/>';
+    o+='<path d="M'+(wx+70.5)+' '+(wy-1.5)+' Q'+(wx+78)+' '+(wy-4)+' '+(wx+86)+' '+(wy-4)+' Q'+(wx+90)+' '+wy+' '+(wx+86)+' '+(wy+4)+' Q'+(wx+78)+' '+(wy+4)+' '+(wx+70.5)+' '+(wy+1.5)+' Z" fill="#282828"/>';
+    [wx-1.5,wx+18.5,wx+45.5,wx+70.5].forEach(function(x){o+='<rect x="'+x+'" y="'+(wy-5)+'" width="2.8" height="10" fill="#404040" opacity="0.6"/>';});
+    [wx+6,wx+12,wx+22,wx+30,wx+50,wx+55,wx+60].forEach(function(x){o+='<circle cx="'+x+'" cy="'+wy+'" r="2" fill="#080808"/>';});
+    [wx+8,wx+25,wx+52].forEach(function(x){o+='<ellipse cx="'+x+'" cy="'+(wy-5.5)+'" rx="4" ry="2.2" fill="#606068" opacity="0.76"/>';});
+    o+='<rect x="'+(wx-9)+'" y="'+(wy-2)+'" width="9" height="3.5" rx="1" fill="#C8A060" opacity="0.85"/>';
+    o+='<rect x="'+(wx-1.5)+'" y="'+(wy-4.5)+'" width="20" height="2" rx="1" fill="white" opacity="0.08"/>';
+    o+='</g>';
+  }
+  return o;
+}
+
+// ══ RENDU + CONTRÔLES ══
+
+// ═══════════════════════════════════════════════════════
+// COMPATIBILITÉ MAESTRO
+// buildAvatarSVG(cfg) — interface publique appelée par Maestro
+// Accepte l'ancien format de config ET le nouveau.
+// ═══════════════════════════════════════════════════════
+function buildAvatarSVG(cfg){
+  if(!cfg) cfg={};
+  // Mapping ancien format → nouveau si nécessaire
+  var c={
+    scene:    cfg.scene    || cfg.bg       || 'sc1',
+    gender:   cfg.gender               || 'f',
+    skin:     cfg.skin     || cfg.skinColor|| 'sk2',
+    hair:     cfg.hair     || cfg.hairStyle|| (cfg.gender==='m'?'mh1':'fh2'),
+    hairColor:cfg.hairColor|| cfg.hColor   || 'hc3',
+    eye:      cfg.eye      || cfg.eyeColor || 'ec1',
+    expr:     cfg.expr     || cfg.expression||'ex1',
+    outfit:   cfg.outfit               || 'ot4',
+    acc:      cfg.acc      || cfg.accessory|| 'ac0',
+    extra:    cfg.extra                || 'ex0',
+    inst:     cfg.inst     || cfg.instrument||'in1',
+  };
+  return buildSVG(c);
+}
+
+// AVATAR_ITEMS — pour l'UI de personnalisation dans Maestro
+var AVATAR_ITEMS = {
+  scenes:     DATA.scenes,
+  genders:    DATA.genders,
+  skins:      DATA.skins,
+  hairsF:     HAIR_F,
+  hairsM:     HAIR_M,
+  hairColors: DATA.hairColors,
+  eyes:       DATA.eyes,
+  exprs:      DATA.exprs,
+  outfits:    DATA.outfits,
+  accs:       DATA.accs,
+  extras:     DATA.extras,
+  insts:      DATA.insts,
+};
+
+// getHairList(gender) — retourne la liste de coiffures selon le genre
+function getAvatarHairList(gender){
+  return gender==='m' ? HAIR_M : HAIR_F;
+}
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════ -->  
 </body>
 </html>
