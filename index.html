@@ -5520,11 +5520,10 @@ console.log('[Maestro v24c] Fix lecture audio chargé ✓');
 </script>
 <!-- ═══════════════════════════════════════════════════
   PATCH AVATAR v6 — Coller juste avant </body>
-  Remplace buildAvatarSVG + AVATAR_ITEMS
+  Compatible exact avec avatarPage() de Maestro
 ═══════════════════════════════════════════════════ -->
 
 <script>
-/* ── MOTEUR AVATAR v6 ─────────────────────────────── */
 // ══ CONFIG ══
 var C={scene:'sc1',gender:'f',skin:'sk2',hair:'fh2',hairColor:'hc3',eye:'ec1',expr:'ex1',outfit:'ot4',acc:'ac0',extra:'ex0',inst:'in1'};
 
@@ -6293,98 +6292,153 @@ function svgInstrument(id,it){
 // ══ RENDU + CONTRÔLES ══
 
 // ═══════════════════════════════════════════════════
-// COMPATIBILITÉ MAESTRO — NE PAS MODIFIER
+// PONT DE COMPATIBILITÉ MAESTRO
 // ═══════════════════════════════════════════════════
 
-// buildAvatarSVG(cfg, size) — remplace l'ancienne version
-// cfg = d.avatarConfig tel que stocké dans Maestro
-// Clés acceptées : skin, hair, hairColor, eye, expr,
-//   outfit, acc/accessory, extra, inst/instrument, scene, gender
+// buildAvatarSVG(cfg, size)
+// cfg utilise les clés de Maestro : skin, hair, accessory, instrument, scene, outfit
+// Notre moteur utilise : acc, inst → on fait le mapping ici
 function buildAvatarSVG(cfg, size) {
   if (!cfg) cfg = {};
   var c = {
-    scene:     cfg.scene                          || 'sc1',
-    gender:    cfg.gender                         || 'f',
-    skin:      cfg.skin                           || 'sk2',
-    hair:      cfg.hair     || cfg.hairStyle      || (cfg.gender==='m'?'mh1':'fh2'),
-    hairColor: cfg.hairColor                      || 'hc3',
-    eye:       cfg.eye      || cfg.eyeColor       || 'ec1',
-    expr:      cfg.expr     || cfg.expression     || 'ex1',
-    outfit:    cfg.outfit                         || 'ot4',
-    acc:       cfg.acc      || cfg.accessory      || 'ac0',
-    extra:     cfg.extra                          || 'ex0',
-    inst:      cfg.inst     || cfg.instrument     || 'in1',
+    scene:     cfg.scene                      || 'sc1',
+    gender:    cfg.gender                     || 'f',
+    skin:      cfg.skin                       || 'sk2',
+    hair:      cfg.hair                       || (cfg.gender==='m' ? 'mh1' : 'fh2'),
+    hairColor: cfg.hairColor                  || 'hc3',
+    eye:       cfg.eye      || cfg.eyeColor   || 'ec1',
+    expr:      cfg.expr     || cfg.expression || 'ex1',
+    outfit:    cfg.outfit                     || 'ot4',
+    // Maestro stocke "accessory", notre moteur veut "acc"
+    acc:       cfg.acc      || cfg.accessory  || 'ac0',
+    extra:     cfg.extra                      || 'ex0',
+    // Maestro stocke "instrument", notre moteur veut "inst"
+    inst:      cfg.inst     || cfg.instrument || 'in1',
   };
   var svg = buildSVG(c);
-  // Si size demandé, ajuster le viewBox wrapper
   if (size && size !== 300) {
-    svg = svg.replace('width="300" height="400"',
-      'width="' + size + '" height="' + Math.round(size * 400/300) + '"');
+    var h = Math.round(size * 400 / 300);
+    svg = svg.replace('width="300" height="400"', 'width="' + size + '" height="' + h + '"');
   }
   return svg;
 }
 
-// AVATAR_ITEMS — structure attendue par Maestro (coffres, UI perso)
-// Adaptée pour être compatible avec l'ancien format
-var AVATAR_ITEMS = {
-  // Clés utilisées par openChest et avatarPage dans Maestro
-  skins:       DATA.skins.map(function(s){
-    return {id:s.id, name:s.n||s.id, unlock:'default'};
-  }),
-  hairs:       HAIR_F.concat(HAIR_M).map(function(h){
-    return {id:h.id, name:h.n||h.id, unlock:'default'};
-  }),
-  outfits:     DATA.outfits.map(function(o){
-    return {id:o.id, name:o.n||o.id, unlock:o.id==='ot1'?'default':'common'};
-  }),
-  accessories: DATA.accs.map(function(a){
-    return {id:a.id, name:a.n||a.id, unlock:a.id==='ac0'?'default':'common'};
-  }),
-  instruments: DATA.insts.map(function(i){
-    return {id:i.id, name:i.n||i.id, unlock:'default'};
-  }),
-  scenes:      DATA.scenes.map(function(s){
-    return {id:s.id, name:s.n||s.id, unlock:s.id==='sc1'?'default':'common'};
-  }),
-  // Données étendues pour l'UI de personnalisation
-  hairsF:      HAIR_F,
-  hairsM:      HAIR_M,
-  hairColors:  DATA.hairColors,
-  eyes:        DATA.eyes,
-  exprs:       DATA.exprs,
-  extras:      DATA.extras,
-  genders:     DATA.genders,
-};
-
-// getAvatarConfig(d) — retourne la config avatar d'un élève
-// avec valeurs par défaut si non configuré
+// getAvatarConfig(d) — valeurs par défaut complètes
+// Conserve les clés Maestro (accessory, instrument) pour compatibilité
 function getAvatarConfig(d) {
   var def = {
-    scene:'sc1', gender:'f', skin:'sk2', hair:'fh2',
-    hairColor:'hc3', eye:'ec1', expr:'ex1', outfit:'ot4',
-    acc:'ac0', extra:'ex0', inst:'in1'
+    scene: 'sc1', gender: 'f', skin: 'sk2',
+    hair: 'fh2', hairColor: 'hc3', eye: 'ec1',
+    expr: 'ex1', outfit: 'ot4',
+    accessory: 'ac0', instrument: 'in1', extra: 'ex0'
   };
   if (!d || !d.avatarConfig) return def;
   return Object.assign({}, def, d.avatarConfig);
 }
 
-// makeAvatarIcon(sid, size, color, initial)
-// Remplace l'icône ronde colorée par le vrai avatar SVG
-// Compatible avec l'appel existant dans profClasse()
-function makeAvatarIcon(sid, size, color, initial) {
-  var d = typeof LS !== 'undefined' ? (LS.sd(sid) || {}) : {};
+// AVATAR_ITEMS — structure EXACTE attendue par avatarPage() de Maestro
+// Chaque item doit avoir : id, name, color (ou bg1+bg2), unlock
+var AVATAR_ITEMS = {
+  skins: DATA.skins.map(function(s) {
+    return { id: s.id, name: s.n || s.id, color: s.c || '#FDDBB4', unlock: 'default' };
+  }),
+  // hairs = toutes les coiffures fille + garçon mélangées
+  // avatarPage utilise cfg['hair'] pour comparer → compatible
+  hairs: HAIR_F.concat(HAIR_M).map(function(h) {
+    return { id: h.id, name: h.n || h.id, color: '#C88010', unlock: 'default' };
+  }),
+  outfits: DATA.outfits.map(function(o, i) {
+    return { id: o.id, name: o.n || o.id, color: o.m || '#5b4fcf',
+             unlock: i === 0 ? 'default' : 'common' };
+  }),
+  // accessory → cfgKey:'accessory' dans avatarPage
+  accessories: DATA.accs.map(function(a, i) {
+    return { id: a.id, name: a.n || a.id, color: a.c || '#5b4fcf',
+             unlock: i === 0 ? 'default' : 'common' };
+  }),
+  // instrument → cfgKey:'instrument' dans avatarPage
+  instruments: DATA.insts.map(function(it, i) {
+    return { id: it.id, name: it.n || it.id, color: it.c || '#C8C8D8',
+             unlock: 'default' };
+  }),
+  scenes: DATA.scenes.map(function(s, i) {
+    return { id: s.id, name: s.n || s.id, bg1: s.bg1 || '#050310', bg2: s.bg2 || '#12082E',
+             unlock: i === 0 ? 'default' : 'common' };
+  }),
+};
+
+// selectAvatarItem patch — Maestro appelle cfg[cfgKey] avec 'accessory'/'instrument'
+// On s'assure que saveAvatarConfig conserve bien ces clés
+var _origSelectAvatarItem = typeof selectAvatarItem === 'function' ? selectAvatarItem : null;
+function selectAvatarItem(cat, cfgKey, itemId, pageEl) {
+  if (!uid) return;
+  var d = LS.sd(uid) || blank(uid);
+  var unlocked = getUnlockedItems(d);
+  if (unlocked[cat].indexOf(itemId) < 0) { toast('🔒 Gagnez des XP pour débloquer !'); return; }
   var cfg = getAvatarConfig(d);
-  // Taille compacte pour la liste de classe
-  var s = size || 34;
-  var h = Math.round(s * 400/300);
-  var svg = buildSVG(cfg).replace(
-    'width="300" height="400"',
-    'width="' + s + '" height="' + h + '" style="border-radius:50%;overflow:hidden"'
-  );
-  return '<div style="width:' + s + 'px;height:' + s + 'px;border-radius:50%;overflow:hidden;flex-shrink:0">' + svg + '</div>';
+  cfg[cfgKey] = itemId; // cfgKey = 'accessory' ou 'instrument' → conservé tel quel
+  d.avatarConfig = cfg;
+  saveAvatarConfig(d, cfg);
+  // Mettre à jour le preview
+  var preview = document.getElementById('avHeroPreview');
+  if (preview) preview.innerHTML = buildAvatarSVG(cfg, 260);
+  // Re-render la page pour mettre à jour la sélection
+  if (pageEl) avatarPage(pageEl);
 }
 
-console.log('[Maestro] Avatar v6 chargé ✓');
+// makeAvatarIcon(sid, size, color, initial) — remplace l'icône ronde par le vrai avatar
+function makeAvatarIcon(sid, size, color, initial) {
+  try {
+    var d = LS.sd(sid) || {};
+    var cfg = getAvatarConfig(d);
+    var s = size || 34;
+    var h = Math.round(s * 400 / 300);
+    var svg = buildSVG({
+      scene: cfg.scene, gender: cfg.gender, skin: cfg.skin,
+      hair: cfg.hair, hairColor: cfg.hairColor, eye: cfg.eye,
+      expr: cfg.expr, outfit: cfg.outfit,
+      acc: cfg.acc || cfg.accessory || 'ac0',
+      extra: cfg.extra, inst: cfg.inst || cfg.instrument || 'in1'
+    }).replace('width="300" height="400"',
+      'width="' + s + '" height="' + h + '"');
+    return '<div style="width:' + s + 'px;height:' + s + 'px;border-radius:50%;overflow:hidden;flex-shrink:0">' + svg + '</div>';
+  } catch(e) {
+    // Fallback sur l'icône colorée si erreur
+    return '<div class="av" style="background:' + (color||'#5b4fcf') + ';width:' + (size||34) + 'px;height:' + (size||34) + 'px">' + (initial||'?') + '</div>';
+  }
+}
+
+// _getSceneSpot(cfg) — retourne la couleur d'accent de la scène (utilisée dans avatarPage)
+function _getSceneSpot(cfg) {
+  var sceneId = cfg && (cfg.scene || 'sc1');
+  var sc = DATA.scenes.find(function(s) { return s.id === sceneId; });
+  return sc ? sc.ac : '#6858d8';
+}
+
+// getUnlockedItems(d) — retourne les items débloqués par catégorie
+function getUnlockedItems(d) {
+  var xp = getXP(d);
+  var hist = d.chestHistory || [];
+  var byChest = {};
+  hist.forEach(function(h) {
+    if (h.unlockedItem) {
+      var cat = h.unlockedItem.cat;
+      byChest[cat] = byChest[cat] || [];
+      byChest[cat].push(h.unlockedItem.id);
+    }
+  });
+  // Tous les items 'default' sont toujours débloqués
+  var result = {};
+  ['skins','hairs','outfits','accessories','instruments','scenes'].forEach(function(cat) {
+    result[cat] = (AVATAR_ITEMS[cat] || [])
+      .filter(function(item) { return item.unlock === 'default'; })
+      .map(function(item) { return item.id; });
+    if (byChest[cat]) result[cat] = result[cat].concat(byChest[cat]);
+  });
+  return result;
+}
+
+console.log('[Maestro] Avatar v6 chargé ✓ — buildAvatarSVG, AVATAR_ITEMS, getAvatarConfig, getUnlockedItems, _getSceneSpot, makeAvatarIcon');
 </script>
 
 <!-- ═══════════════════════════════════════════════════ -->  
