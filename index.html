@@ -6442,5 +6442,923 @@ console.log('[Maestro] Avatar v6 chargé ✓ — buildAvatarSVG, AVATAR_ITEMS, g
 </script>
 
 <!-- ═══════════════════════════════════════════════════ -->  
+<!-- ═══════════════════════════════════════════════════════════
+  PATCH PLANNING CONSERVATOIRE — Coller juste avant </body>
+  Ajoute l'outil de planning comme page dédiée dans Maestro.
+  Données sauvegardées : fbDb.ref('conservatoire/' + uid)
+  Retour Maestro : bouton ← dans la topbar de l'outil
+═══════════════════════════════════════════════════════════ -->
+
+<script>
+(function() {
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+// CONSTANTES
+// ═══════════════════════════════════════════════════════════
+var PLAN_DEFAULT_CYCLES = [
+  {id:"c1",label:"Cycle 1",duration:30,color:"#0066CC",light:"#E8F0FB"},
+  {id:"c2",label:"Cycle 2",duration:45,color:"#00875A",light:"#E3F5ED"},
+  {id:"c3",label:"CEM",    duration:50,color:"#8B5CF6",light:"#EDE9FE"},
+  {id:"c4",label:"COP",    duration:60,color:"#D97706",light:"#FEF3C7"},
+  {id:"c5",label:"Perso",  duration:30,color:"#DC2626",light:"#FEE2E2"},
+];
+var PLAN_DAYS    = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+var PLAN_DKEYS   = ["lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+var PLAN_DAY_COL = ["#0066CC","#8B5CF6","#00875A","#D97706","#DC2626","#6B7280"];
+var PLAN_START_H = 8, PLAN_END_H = 20, PLAN_ROW_H = 40, PLAN_HEAD_H = 36;
+
+var _planUid = 1;
+function planId() { return 'p' + (_planUid++); }
+function pt2m(t) { var p=t.split(':').map(Number); return p[0]*60+p[1]; }
+function pm2t(m) { return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function pm2px(m) { return ((m - PLAN_START_H*60)/30)*PLAN_ROW_H; }
+function psnapM(r) { return Math.round((r - PLAN_START_H*60)/15)*15 + PLAN_START_H*60; }
+function pfmtH(m) { var h=Math.floor(m/60),mn=m%60; return mn?h+'h'+mn:h+'h'; }
+
+// ═══════════════════════════════════════════════════════════
+// ÉTAT GLOBAL DU PLANNING
+// ═══════════════════════════════════════════════════════════
+var PS = {
+  cycles:   null,
+  students: [],
+  sch:      null,
+  locked:   [],
+  workSlots:[],
+  breaks:   [],
+  view:     'students', // 'students' | 'schedule' | 'dashboard'
+  genMode:  'wishes',
+  undoStack:[],
+  toast:    null,
+  dragState:null,
+};
+
+function planResetState() {
+  PS.cycles   = PS.cycles || PLAN_DEFAULT_CYCLES.map(function(c){return Object.assign({},c);});
+  PS.students = PS.students || [];
+  PS.sch      = PS.sch || null;
+  PS.locked   = PS.locked || [];
+  PS.workSlots= PS.workSlots || [];
+  PS.breaks   = PS.breaks || [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// FIREBASE SAVE/LOAD
+// ═══════════════════════════════════════════════════════════
+function planSave() {
+  if (!window.fbDb || !window.uid) return;
+  var data = {
+    cycles:   PS.cycles,
+    students: PS.students,
+    sch:      PS.sch,
+    locked:   PS.locked,
+    workSlots:PS.workSlots,
+    breaks:   PS.breaks,
+    genMode:  PS.genMode,
+  };
+  try {
+    window.fbDb.ref('conservatoire/' + window.uid).set(
+      JSON.parse(JSON.stringify(data, function(k,v){ return v===undefined?null:v; }))
+    );
+  } catch(e) { console.warn('[Planning] save error:', e); }
+}
+
+function planLoad(callback) {
+  if (!window.fbDb || !window.uid) { if(callback) callback(); return; }
+  window.fbDb.ref('conservatoire/' + window.uid).once('value', function(snap) {
+    var d = snap.val();
+    if (d) {
+      if (d.cycles   && d.cycles.length)   PS.cycles    = d.cycles;
+      if (d.students && d.students.length) PS.students  = d.students;
+      if (d.sch)                           PS.sch       = d.sch;
+      if (d.locked)                        PS.locked    = d.locked;
+      if (d.workSlots)                     PS.workSlots = d.workSlots;
+      if (d.breaks)                        PS.breaks    = d.breaks;
+      if (d.genMode)                       PS.genMode   = d.genMode;
+    }
+    if (callback) callback();
+  }, function() { if (callback) callback(); });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCHEDULER (greedy)
+// ═══════════════════════════════════════════════════════════
+function planTeacherAllows(day, s, e) {
+  if (!PS.workSlots.length) return true;
+  if (!PS.workSlots.filter(function(w){return w.day===day;}).some(function(w){return pt2m(w.start)<=s&&e<=pt2m(w.end);})) return false;
+  return !PS.breaks.filter(function(b){return b.day===day;}).some(function(b){return !(e<=pt2m(b.start)||s>=pt2m(b.end));});
+}
+
+function planBuildSchedule() {
+  var sch = {};
+  PLAN_DKEYS.forEach(function(d){ sch[d]=[]; });
+
+  // Place locked first
+  PS.locked.forEach(function(lk){
+    var st = PS.students.find(function(s){return s.id===lk.studentId;});
+    if (!st) return;
+    sch[lk.day].push({studentId:lk.studentId, startMin:lk.startMin, endMin:lk.startMin+st.cycle.duration, locked:true, availType:lk.availType||'preferred'});
+  });
+
+  function clash(day, s, e, xid) {
+    return sch[day].some(function(sl){ return sl.studentId!==xid && !(e<=sl.startMin||s>=sl.endMin); });
+  }
+
+  var unlocked = PS.students.filter(function(s){ return !PS.locked.some(function(l){return l.studentId===s.id;}); });
+  unlocked.sort(function(a,b){
+    var pa=(b.priority||3)-(a.priority||3);
+    if(pa!==0) return pa;
+    return a.availabilities.length - b.availabilities.length;
+  });
+
+  unlocked.forEach(function(st) {
+    var placed = false;
+    var wins = st.availabilities.filter(function(a){return a.type==='preferred';})
+               .concat(st.availabilities.filter(function(a){return a.type==='possible';}));
+    wins.forEach(function(av) {
+      if (placed) return;
+      var ws=pt2m(av.start), we=pt2m(av.end), dur=st.cycle.duration;
+      for (var t=ws; t+dur<=we; t+=30) {
+        if (!planTeacherAllows(av.day,t,t+dur)) continue;
+        if (clash(av.day,t,t+dur,st.id)) continue;
+        sch[av.day].push({studentId:st.id, startMin:t, endMin:t+dur, locked:false, availType:av.type});
+        placed=true; break;
+      }
+    });
+  });
+  return sch;
+}
+
+function planGenerate() {
+  if (!PS.cycles) PS.cycles = PLAN_DEFAULT_CYCLES.map(function(c){return Object.assign({},c);});
+  var prevSch = PS.sch;
+  if (prevSch) PS.undoStack.push(prevSch);
+  PS.sch = planBuildSchedule();
+  var placed = PLAN_DKEYS.reduce(function(a,d){ return a+(PS.sch[d]||[]).length; }, 0);
+  planSave();
+  planFlash(placed + ' élève' + (placed>1?'s':'') + ' placé' + (placed>1?'s':''));
+  planRender();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATS & SCORE
+// ═══════════════════════════════════════════════════════════
+function planComputeScore() {
+  if (!PS.sch || !PS.students.length) return {score:0,label:'N/A',color:'#9CA3AF',preferred:0,possible:0,unplaced:0};
+  var preferred=0, possible=0, unplaced=0;
+  PS.students.forEach(function(st) {
+    var found=false;
+    PLAN_DKEYS.forEach(function(d){ var sl=(PS.sch[d]||[]).find(function(s){return s.studentId===st.id;}); if(sl){found=true;if(sl.availType==='preferred')preferred++;else possible++;} });
+    if(!found) unplaced++;
+  });
+  var wishScore = Math.round((preferred*100+possible*60)/PS.students.length);
+  var score = Math.min(100, Math.round(wishScore*0.7 + (1-unplaced/PS.students.length)*30));
+  var label  = score>=90?'Excellent':score>=75?'Très bon':score>=60?'Bon':score>=40?'Moyen':'À optimiser';
+  var color  = score>=90?'#00B894':score>=75?'#0066CC':score>=60?'#E17055':score>=40?'#FBBF24':'#E84393';
+  return {score:score, label:label, color:color, preferred:preferred, possible:possible, unplaced:unplaced, total:PS.students.length};
+}
+
+function planComputeStats() {
+  var sch = PS.sch || {};
+  var dayStats = PLAN_DKEYS.map(function(day,ci) {
+    var slots = sch[day]||[];
+    var cours = slots.reduce(function(a,s){return a+(s.endMin-s.startMin);},0);
+    var work  = PS.workSlots.filter(function(w){return w.day===day;}).reduce(function(a,w){return a+(pt2m(w.end)-pt2m(w.start));},0);
+    var brk   = PS.breaks.filter(function(b){return b.day===day;}).reduce(function(a,b){return a+(pt2m(b.end)-pt2m(b.start));},0);
+    var avail = Math.max(work-brk,0);
+    return {day:day,label:PLAN_DAYS[ci],cours:cours,avail:avail,count:slots.length,pct:avail>0?Math.round(cours/avail*100):0};
+  }).filter(function(d){return d.avail>0||d.count>0;});
+  var totalCours = dayStats.reduce(function(a,d){return a+d.cours;},0);
+  var totalWork  = PS.workSlots.reduce(function(a,w){return a+(pt2m(w.end)-pt2m(w.start));},0);
+  var totalBrk   = PS.breaks.reduce(function(a,b){return a+(pt2m(b.end)-pt2m(b.start));},0);
+  var totalAvail = Math.max(totalWork-totalBrk,0);
+  return {dayStats:dayStats, totalCours:totalCours, totalAvail:totalAvail, pct:totalAvail>0?Math.round(totalCours/totalAvail*100):0};
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════
+function planFlash(msg) {
+  var el = document.getElementById('planToast');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(function(){ el.style.display='none'; }, 2800);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDU PRINCIPAL
+// ═══════════════════════════════════════════════════════════
+function planRender() {
+  var app = document.getElementById('planApp');
+  if (!app) return;
+  planResetState();
+
+  var sc = planComputeScore();
+  var placed = PS.sch ? PLAN_DKEYS.reduce(function(a,d){return a+(PS.sch[d]||[]).length;},0) : 0;
+  var unplacedList = PS.sch ? PS.students.filter(function(s){return !PLAN_DKEYS.some(function(d){return (PS.sch[d]||[]).some(function(sl){return sl.studentId===s.id;});});}) : [];
+
+  // ── TOPBAR ──
+  var topbar = '<div style="background:#fff;border-bottom:1.5px solid #EAECF0;padding:0 14px;height:50px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:200;box-shadow:0 1px 8px rgba(0,102,204,.06);flex-shrink:0">'
+    + '<button onclick="planExitToMaestro()" style="display:flex;align-items:center;gap:6px;background:transparent;border:1.5px solid #EAECF0;border-radius:8px;padding:5px 12px;cursor:pointer;font-family:inherit;font-size:.78rem;font-weight:700;color:#0066CC;transition:all .18s" onmouseover="this.style.background=\'#E8F0FB\'" onmouseout="this.style.background=\'transparent\'">'
+    + '<span style="font-size:.9rem">←</span> Maestro</button>'
+    + '<div style="width:1px;height:22px;background:#EAECF0"></div>'
+    + '<span style="font-family:\'Lora\',serif;font-size:1rem;font-weight:600;color:#0066CC;font-style:italic;flex:1">Planning</span>'
+    + '<div style="display:flex;gap:6px;align-items:center">';
+
+  // Nav tabs
+  [['students','👥','Élèves'],['schedule','📅','Planning'],['dashboard','📊','Stats']].forEach(function(tab) {
+    var active = PS.view === tab[0];
+    var disabled = tab[0]==='schedule'&&!PS.sch || tab[0]==='dashboard'&&!PS.sch;
+    topbar += '<button onclick="' + (disabled?'':('planSetView(\''+tab[0]+'\')')) + '" style="background:'+(active?'#E8F0FB':'transparent')+';border:1.5px solid '+(active?'#0066CC':'transparent')+';border-radius:8px;padding:5px 10px;cursor:'+(disabled?'default':'pointer')+';font-family:inherit;font-size:.73rem;font-weight:'+(active?'800':'600')+';color:'+(active?'#0066CC':disabled?'#C4C9D4':'#5A6070')+';opacity:'+(disabled?.4:1)+'">'
+      + tab[1] + ' ' + tab[2] + '</button>';
+  });
+
+  topbar += '<button onclick="planGenerate()" style="background:#0066CC;border:none;color:#fff;border-radius:8px;padding:5px 12px;cursor:pointer;font-family:inherit;font-size:.75rem;font-weight:800">Générer</button>';
+  topbar += '</div></div>';
+
+  // ── CONTENU ──
+  var content = '';
+
+  if (PS.view === 'students') {
+    content = planRenderStudents(unplacedList, placed);
+  } else if (PS.view === 'schedule') {
+    content = planRenderSchedule(sc, placed, unplacedList);
+  } else if (PS.view === 'dashboard') {
+    content = planRenderDashboard(sc);
+  }
+
+  app.innerHTML = topbar
+    + '<div id="planToast" style="display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1A1D27;color:#F0F2F5;border-radius:8px;padding:.55rem 1.2rem;z-index:9999;font-size:.78rem;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.2);white-space:nowrap;font-family:inherit"></div>'
+    + '<div style="flex:1;overflow-y:auto">'
+    + content
+    + '</div>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// VUE ÉLÈVES
+// ═══════════════════════════════════════════════════════════
+function planRenderStudents(unplacedList, placed) {
+  var html = '<div style="max-width:760px;margin:0 auto;padding:1.5rem">';
+
+  // Header
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:1.25rem">'
+    + '<div><h2 style="font-family:\'DM Serif Display\',serif;font-size:1.8rem;font-weight:400;color:#111;letter-spacing:-.02em;margin:0">Élèves</h2>'
+    + '<p style="color:#8A92A0;font-size:.75rem;margin:4px 0 0">' + PS.students.length + ' élève' + (PS.students.length!==1?'s':'') + (PS.sch?' · '+placed+' placé'+(placed!==1?'s':''):'') + '</p></div>'
+    + '<div style="display:flex;gap:6px">'
+    + '<button onclick="planOpenAddStudent()" style="background:#111;border:none;color:#fff;border-radius:8px;padding:.5rem 1.1rem;cursor:pointer;font-weight:600;font-size:.82rem;font-family:inherit">+ Ajouter</button>'
+    + '</div></div>';
+
+  // Plages prof
+  html += '<div style="background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:12px;padding:1rem;margin-bottom:1rem">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">'
+    + '<span style="font-size:.72rem;font-weight:800;color:#8A92A0;letter-spacing:.1em;text-transform:uppercase">Mes plages de travail</span>'
+    + '<button onclick="planOpenWorkSlots()" style="background:transparent;border:1.5px solid #EAECF0;border-radius:7px;padding:3px 10px;cursor:pointer;font-size:.72rem;font-weight:700;color:#0066CC;font-family:inherit">Configurer</button>'
+    + '</div>';
+  if (PS.workSlots.length === 0) {
+    html += '<p style="color:#C4C9D4;font-size:.75rem;font-style:italic;margin:0">Aucune plage — l\'algorithme utilisera toutes les disponibilités des élèves</p>';
+  } else {
+    html += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
+    PS.workSlots.forEach(function(w) {
+      html += '<span style="background:#E8F0FB;color:#0066CC;border-radius:6px;padding:2px 9px;font-size:.72rem;font-weight:700">'
+        + PLAN_DAYS[PLAN_DKEYS.indexOf(w.day)] + ' ' + w.start + '–' + w.end + '</span>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Liste élèves
+  if (PS.students.length === 0) {
+    html += '<div style="border:1.5px dashed #EAECF0;border-radius:12px;padding:3.5rem 2rem;text-align:center">'
+      + '<p style="color:#8A92A0;font-size:.88rem;margin:0 0 1rem">Aucun élève. Ajoutez-en pour commencer.</p>'
+      + '<button onclick="planLoadDemo()" style="background:#E8F0FB;border:1.5px solid #C4D9F5;color:#0066CC;border-radius:9px;padding:.5rem 1.2rem;cursor:pointer;font-size:.82rem;font-weight:700;font-family:inherit">Charger la démo</button>'
+      + '</div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:5px">';
+    PS.students.forEach(function(st) {
+      var cy = (PS.cycles||[]).find(function(c){return st.cycle&&c.id===st.cycle.id;});
+      var inSch = PS.sch && PLAN_DKEYS.some(function(d){return (PS.sch[d]||[]).some(function(sl){return sl.studentId===st.id;});});
+      var ini = st.name.split(' ').map(function(n){return n[0];}).slice(0,2).join('');
+      html += '<div style="background:#fff;border:1.5px solid #EAECF0;border-radius:10px;padding:.75rem 1rem;display:flex;align-items:center;gap:10px">'
+        + '<div style="width:38px;height:38px;border-radius:10px;background:'+(cy?cy.light:'#F3F4F6')+';border:2px solid '+(cy?cy.color:'#EAECF0')+';display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.74rem;color:'+(cy?cy.color:'#111')+';flex-shrink:0">' + ini + '</div>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+        + '<span style="font-weight:700;font-size:.88rem;color:#111">' + escHtml(st.name) + '</span>';
+      if (PS.sch) {
+        html += inSch
+          ? '<span style="font-size:.6rem;font-weight:800;color:#00875A;background:#E3F5ED;border:1.5px solid #A7EED9;border-radius:20px;padding:1px 7px">Placé</span>'
+          : '<span style="font-size:.6rem;font-weight:800;color:#DC2626;background:#FEE2E2;border:1.5px solid #FCA5A5;border-radius:20px;padding:1px 7px">Non placé</span>';
+      }
+      html += '</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">';
+      if (st.instrument) html += '<span style="font-size:.71rem;color:#8A92A0">' + escHtml(st.instrument) + '</span>';
+      if (cy) html += '<span style="font-size:.71rem;color:'+cy.color+';font-weight:700;background:'+cy.light+';border-radius:5px;padding:1px 6px">' + escHtml(cy.label) + ' ' + cy.duration + 'min</span>';
+      html += '<span style="font-size:.68rem;color:#8A92A0">' + st.availabilities.length + ' dispo' + (st.availabilities.length!==1?'s':'') + '</span>';
+      html += '</div></div>'
+        + '<div style="display:flex;gap:5px">'
+        + '<button onclick="planOpenEditStudent(\'' + st.id + '\')" style="background:#F8F9FB;border:1.5px solid #EAECF0;color:#8A92A0;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.82rem;display:flex;align-items:center;justify-content:center">✏</button>'
+        + '<button onclick="planDelStudent(\'' + st.id + '\')" style="background:#FEE2E2;border:1.5px solid #FCA5A5;color:#DC2626;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.82rem;display:flex;align-items:center;justify-content:center">×</button>'
+        + '</div></div>';
+    });
+    html += '</div>';
+
+    // Actions bas
+    html += '<div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1.5px solid #EAECF0;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">'
+      + '<button onclick="planLoadDemo()" style="background:#F8F9FB;border:1.5px solid #EAECF0;color:#8A92A0;border-radius:8px;padding:.5rem .9rem;cursor:pointer;font-size:.78rem;font-weight:600;font-family:inherit">Démo</button>'
+      + '<button onclick="planGenerate()" style="background:#111;border:none;color:#fff;border-radius:8px;padding:.6rem 1.6rem;cursor:pointer;font-weight:700;font-size:.86rem;font-family:inherit">Générer le planning</button>'
+      + '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// VUE PLANNING (grille)
+// ═══════════════════════════════════════════════════════════
+function planRenderSchedule(sc, placed, unplacedList) {
+  var html = '<div style="max-width:1200px;margin:0 auto;padding:1rem 1.25rem">';
+
+  // Barre stats
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:.85rem">'
+    + '<div style="background:#E3F5ED;border:1.5px solid #A7EED9;border-radius:9px;padding:4px 12px;display:flex;align-items:center;gap:5px">'
+    + '<span style="font-weight:900;font-size:1rem;color:#00875A">' + placed + '</span>'
+    + '<span style="font-size:.7rem;color:#00875A;font-weight:600">placé' + (placed>1?'s':'') + '</span></div>';
+
+  if (unplacedList.length > 0) {
+    html += '<div style="background:#FEE2E2;border:1.5px solid #FCA5A5;border-radius:9px;padding:4px 12px;display:flex;align-items:center;gap:5px">'
+      + '<span style="font-weight:900;font-size:1rem;color:#DC2626">' + unplacedList.length + '</span>'
+      + '<span style="font-size:.7rem;color:#DC2626;font-weight:700">non placé' + (unplacedList.length>1?'s':'') + '</span></div>';
+  }
+
+  html += '<div style="background:' + sc.color + '18;border:1.5px solid ' + sc.color + '40;border-radius:9px;padding:4px 12px">'
+    + '<span style="font-weight:900;font-size:.88rem;color:' + sc.color + '">' + sc.score + '/100</span>'
+    + '<span style="font-size:.68rem;color:' + sc.color + ';margin-left:5px;font-weight:600">' + sc.label + '</span></div>';
+
+  html += '<button onclick="planGenerate()" style="margin-left:auto;background:transparent;border:1.5px solid #EAECF0;color:#8A92A0;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:.73rem;font-weight:600;font-family:inherit">↺ Regénérer</button>';
+  html += '</div>';
+
+  // Grille
+  html += planRenderGrid();
+  html += '</div>';
+  return html;
+}
+
+function planRenderGrid() {
+  var sch = PS.sch || {};
+  var totalRows = (PLAN_END_H - PLAN_START_H) * 2;
+  var html = '<div style="display:flex;border:1.5px solid #EAECF0;border-radius:12px;overflow:auto;box-shadow:0 2px 16px rgba(0,0,0,.05)">';
+
+  // Colonne heures
+  html += '<div style="width:44px;flex-shrink:0;background:#FAFBFC;border-right:1.5px solid #F0F1F5;position:sticky;left:0;z-index:10">';
+  html += '<div style="height:' + PLAN_HEAD_H + 'px"></div>';
+  for (var hi = 0; hi < totalRows; hi++) {
+    html += '<div style="height:' + PLAN_ROW_H + 'px;display:flex;align-items:flex-start;justify-content:flex-end;padding-right:6px;padding-top:' + (hi%2===0?4:0) + 'px;border-bottom:' + (hi%2===1?'1px solid #F0F1F5':'none') + '">';
+    if (hi%2===0) html += '<span style="font-size:.5rem;color:#8A92A0;font-family:monospace;opacity:.7">' + (PLAN_START_H + hi/2) + 'h</span>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Colonnes jours
+  html += '<div style="display:flex;flex:1;min-width:0">';
+  PLAN_DKEYS.forEach(function(dk, ci) {
+    var daySlots = (sch[dk]||[]).slice().sort(function(a,b){return a.startMin-b.startMin;});
+    var works = PS.workSlots.filter(function(w){return w.day===dk;});
+    var bks   = PS.breaks.filter(function(b){return b.day===dk;});
+
+    html += '<div style="flex:1;min-width:80px;border-left:' + (ci>0?'1.5px solid #F0F1F5':'none') + ';background:' + (ci===5?'#FAFBFC':'#fff') + '">';
+
+    // Header jour
+    html += '<div style="height:' + PLAN_HEAD_H + 'px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-bottom:2px solid #F0F1F5;position:sticky;top:0;background:' + (ci===5?'#FAFBFC':'#fff') + ';z-index:9;gap:2px">'
+      + '<span style="font-size:.6rem;font-weight:900;color:' + PLAN_DAY_COL[ci] + ';letter-spacing:.1em;text-transform:uppercase">' + PLAN_DAYS[ci].slice(0,3) + '</span>'
+      + '<div style="width:4px;height:4px;border-radius:50%;background:' + PLAN_DAY_COL[ci] + ';opacity:.35"></div>'
+      + '</div>';
+
+    // Corps
+    html += '<div style="position:relative;height:' + (totalRows*PLAN_ROW_H) + 'px">';
+
+    // Lignes de fond
+    for (var ri = 0; ri < totalRows; ri++) {
+      html += '<div style="position:absolute;top:' + (ri*PLAN_ROW_H) + 'px;left:0;right:0;height:' + PLAN_ROW_H + 'px;border-bottom:' + (ri%2===1?'1px solid #F0F1F5':'1px solid #F8F9FB') + ';background:' + (ri%2===1?'rgba(248,249,251,.5)':'transparent') + '"></div>';
+    }
+
+    // Plages travail
+    works.forEach(function(w) {
+      var top = pm2px(pt2m(w.start));
+      var h = ((pt2m(w.end)-pt2m(w.start))/30)*PLAN_ROW_H;
+      html += '<div style="position:absolute;top:' + top + 'px;left:0;right:0;height:' + h + 'px;background:rgba(0,135,90,.05);border-left:3px solid rgba(0,135,90,.2);pointer-events:none;z-index:1"></div>';
+    });
+
+    // Pauses
+    bks.forEach(function(b) {
+      var top = pm2px(pt2m(b.start));
+      var h = ((pt2m(b.end)-pt2m(b.start))/30)*PLAN_ROW_H;
+      html += '<div style="position:absolute;top:' + top + 'px;left:0;right:0;height:' + h + 'px;z-index:2;pointer-events:none;background:repeating-linear-gradient(135deg,rgba(220,38,38,.05),rgba(220,38,38,.05) 4px,transparent 4px,transparent 10px);border-left:3px solid rgba(220,38,38,.3)">'
+        + '<span style="font-size:.42rem;color:rgba(220,38,38,.5);padding:3px 4px;display:block;font-weight:800;text-transform:uppercase">Pause</span>'
+        + '</div>';
+    });
+
+    // Créneaux
+    daySlots.forEach(function(slot, sli) {
+      var st = PS.students.find(function(s){return s.id===slot.studentId;});
+      var cy = st && (PS.cycles||[]).find(function(c){return st.cycle&&c.id===st.cycle.id;});
+      if (!st || !cy) return;
+      var isLk = PS.locked.some(function(l){return l.studentId===slot.studentId&&l.day===dk;});
+      var top = pm2px(slot.startMin);
+      var h = (cy.duration/30)*PLAN_ROW_H;
+      var shortName = st.name.split(' ')[0];
+
+      html += '<div style="position:absolute;top:' + (top+2) + 'px;left:3px;right:3px;height:' + (h-4) + 'px;z-index:5;border-radius:9px;background:' + cy.light + ';border:2px solid ' + cy.color + '99;cursor:pointer" onclick="planOpenStudentCard(\'' + st.id + '\')">'
+        + '<div style="position:absolute;top:0;left:0;width:4px;bottom:0;background:' + cy.color + ';border-radius:7px 0 0 7px"></div>'
+        + '<div style="padding-left:8px;padding-right:4px;padding-top:3px;height:100%;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:2px">'
+        + '<div><div style="font-weight:900;font-size:.7rem;color:' + cy.color + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">' + escHtml(shortName) + '</div>';
+      if (h > 46) html += '<div style="font-size:.54rem;color:' + cy.color + ';opacity:.75;font-family:monospace">' + pm2t(slot.startMin) + '</div>';
+      html += '</div>'
+        + '<button onclick="event.stopPropagation();planToggleLock(\'' + dk + '\',\'' + slot.studentId + '\', ' + slot.startMin + ')" style="background:' + (isLk?cy.color:'rgba(0,0,0,.05)') + ';border:none;border-radius:4px;color:' + (isLk?'#fff':'#aaa') + ';cursor:pointer;font-size:.55rem;width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;margin-top:1px">' + (isLk?'🔒':'🔓') + '</button>'
+        + '</div></div></div>';
+    });
+
+    html += '</div></div>';
+  });
+
+  html += '</div></div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// VUE DASHBOARD
+// ═══════════════════════════════════════════════════════════
+function planRenderDashboard(sc) {
+  var stats = planComputeStats();
+  var placed = PLAN_DKEYS.reduce(function(a,d){return a+(PS.sch&&PS.sch[d]?PS.sch[d].length:0);},0);
+  var maxBar = Math.max.apply(null, stats.dayStats.map(function(d){return d.cours;}), [1]);
+
+  var html = '<div style="max-width:800px;margin:0 auto;padding:1.5rem">'
+    + '<h2 style="font-family:\'DM Serif Display\',serif;font-size:1.8rem;font-weight:400;color:#111;letter-spacing:-.02em;margin:0 0 1.25rem">Statistiques</h2>';
+
+  // KPIs
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem">';
+  [
+    {label:'Élèves',   value:String(PS.students.length), color:'#00875A', bg:'#E3F5ED'},
+    {label:'Heures',   value:pfmtH(stats.totalCours),   color:'#0066CC', bg:'#E8F0FB'},
+    {label:'Score',    value:sc.score+'/100',            color:sc.color,  bg:sc.color+'18'},
+    {label:'Remplis.', value:stats.pct+'%',              color:'#D97706', bg:'#FEF3C7'},
+  ].forEach(function(k) {
+    html += '<div style="background:'+k.bg+';border-radius:12px;padding:.9rem 1rem">'
+      + '<div style="font-size:.6rem;font-weight:800;color:'+k.color+';letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">'+k.label+'</div>'
+      + '<div style="font-family:\'DM Serif Display\',serif;font-size:1.6rem;font-weight:400;color:'+k.color+';line-height:1">'+k.value+'</div>'
+      + '</div>';
+  });
+  html += '</div>';
+
+  // Graphe par jour
+  html += '<div style="background:#fff;border:1.5px solid #EAECF0;border-radius:12px;padding:1rem;margin-bottom:.75rem">'
+    + '<div style="font-weight:800;font-size:.8rem;color:#111;margin-bottom:.85rem">Charge par jour</div>';
+  stats.dayStats.forEach(function(d) {
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">'
+      + '<span style="font-size:.63rem;font-weight:700;color:#8A92A0;width:28px;flex-shrink:0;text-transform:uppercase">' + d.label.slice(0,3) + '</span>'
+      + '<div style="flex:1;background:#F3F4F6;border-radius:5px;height:20px;overflow:hidden;position:relative">'
+      + '<div style="position:absolute;top:0;left:0;width:' + Math.min(d.cours/maxBar*90,100) + '%;height:100%;background:linear-gradient(90deg,#0066CC,#00875A);border-radius:5px"></div>'
+      + '<span style="position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:.58rem;font-weight:700;color:#9CA3AF">' + d.pct + '%</span>'
+      + '</div>'
+      + '<span style="font-size:.63rem;color:#9CA3AF;width:28px;text-align:right">' + pfmtH(d.cours) + '</span>'
+      + '</div>';
+  });
+  html += '</div>';
+
+  // Détail non placés
+  if (sc.unplaced > 0) {
+    html += '<div style="background:#FEE2E2;border:1.5px solid #FCA5A5;border-radius:12px;padding:.85rem 1rem">'
+      + '<div style="font-weight:800;font-size:.8rem;color:#DC2626;margin-bottom:.5rem">Élèves non placés (' + sc.unplaced + ')</div>';
+    PS.students.forEach(function(st) {
+      var inSch = PLAN_DKEYS.some(function(d){return (PS.sch[d]||[]).some(function(sl){return sl.studentId===st.id;});});
+      if (!inSch) {
+        html += '<div style="font-size:.8rem;color:#7F1D1D;font-weight:600;margin-bottom:2px">· ' + escHtml(st.name) + '</div>';
+      }
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODALES
+// ═══════════════════════════════════════════════════════════
+function planOpenModal(html) {
+  var mo = document.getElementById('planModal');
+  if (!mo) {
+    mo = document.createElement('div');
+    mo.id = 'planModal';
+    document.body.appendChild(mo);
+  }
+  mo.innerHTML = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center;z-index:2000;backdrop-filter:blur(4px)" onclick="if(event.target===this)planCloseModal()">'
+    + '<div style="background:#fff;border-radius:18px 18px 0 0;padding:1.5rem;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,.15)">'
+    + html
+    + '</div></div>';
+}
+
+function planCloseModal() {
+  var mo = document.getElementById('planModal');
+  if (mo) mo.innerHTML = '';
+}
+
+function planModalHdr(title) {
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">'
+    + '<h3 style="margin:0;font-family:\'DM Serif Display\',serif;font-size:1.25rem;font-weight:400;color:#111">' + title + '</h3>'
+    + '<button onclick="planCloseModal()" style="background:#F3F4F6;border:none;border-radius:7px;width:30px;height:30px;cursor:pointer;color:#6B7280;font-weight:700;font-size:.9rem">×</button>'
+    + '</div>';
+}
+
+function planAvailRowHtml(av, idx) {
+  var dl = PLAN_DAYS[PLAN_DKEYS.indexOf(av.day)] || av.day;
+  return '<div style="display:flex;align-items:center;gap:8px;background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:8px;padding:.35rem .75rem;font-size:.8rem;margin-bottom:3px">'
+    + (av.type==='preferred' ? '<span style="background:#0066CC;color:#fff;border-radius:4px;font-size:.52rem;padding:1px 5px;font-weight:800">PREF</span>' : '<span style="background:#F3F4F6;color:#9CA3AF;border-radius:4px;font-size:.52rem;padding:1px 5px;font-weight:800">POSS</span>')
+    + '<strong>' + dl + '</strong> ' + av.start + '–' + av.end
+    + '<button onclick="planRemoveAvail(' + idx + ')" style="background:none;border:none;color:#DC2626;cursor:pointer;margin-left:auto;font-size:.9rem;line-height:1">×</button>'
+    + '</div>';
+}
+
+// Formulaire élève
+var _editStudentId = null;
+var _editAvails = [];
+
+function planOpenAddStudent() { _editStudentId = null; _editAvails = []; planRenderStudentForm(); }
+
+function planOpenEditStudent(sid) {
+  var st = PS.students.find(function(s){return s.id===sid;});
+  if (!st) return;
+  _editStudentId = sid;
+  _editAvails = st.availabilities.map(function(a){return Object.assign({},a);});
+  planRenderStudentForm(st);
+}
+
+function planRenderStudentForm(st) {
+  var cycles = PS.cycles || PLAN_DEFAULT_CYCLES;
+  var selCid = st ? st.cycle.id : (cycles[0]&&cycles[0].id);
+  var prio = st ? (st.priority||3) : 3;
+
+  var html = planModalHdr(st ? 'Modifier l\'élève' : 'Ajouter un élève');
+  html += '<div style="display:flex;flex-direction:column;gap:.9rem">';
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">'
+    + '<div><label style="display:block;font-size:.6rem;font-weight:800;color:#9CA3AF;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">Nom</label>'
+    + '<input id="pfName" style="background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:9px;color:#111;padding:.45rem .75rem;font-size:.85rem;width:100%;outline:none;font-family:inherit" value="' + (st?escHtml(st.name):'') + '" placeholder="Marie Dupont"></div>'
+    + '<div><label style="display:block;font-size:.6rem;font-weight:800;color:#9CA3AF;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">Instrument</label>'
+    + '<input id="pfInst" style="background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:9px;color:#111;padding:.45rem .75rem;font-size:.85rem;width:100%;outline:none;font-family:inherit" value="' + (st?escHtml(st.instrument||''):'') + '" placeholder="Flûte"></div>'
+    + '</div>';
+
+  html += '<div><label style="display:block;font-size:.6rem;font-weight:800;color:#9CA3AF;letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">Cycle</label>'
+    + '<div style="display:flex;gap:5px;flex-wrap:wrap" id="pfCycleRow">';
+  cycles.forEach(function(c) {
+    html += '<button type="button" id="pfc_' + c.id + '" onclick="planSelectCycle(\'' + c.id + '\')" style="background:' + (selCid===c.id?c.color:c.light) + ';border:1.5px solid ' + (selCid===c.id?c.color:c.color+'40') + ';color:' + (selCid===c.id?'#fff':c.color) + ';border-radius:7px;padding:.3rem .7rem;cursor:pointer;font-weight:700;font-size:.72rem;font-family:inherit">' + escHtml(c.label) + ' ' + c.duration + 'min</button>';
+  });
+  html += '</div></div>';
+  html += '<input type="hidden" id="pfCid" value="' + selCid + '">';
+
+  html += '<div><label style="display:block;font-size:.6rem;font-weight:800;color:#9CA3AF;letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">Priorité</label>'
+    + '<div style="display:flex;gap:4px" id="pfPrioRow">';
+  for (var n=1;n<=5;n++) {
+    html += '<button type="button" id="pfp_' + n + '" onclick="planSelectPrio(' + n + ')" style="width:30px;height:30px;border-radius:7px;border:2px solid ' + (prio>=n?'#F59E0B':'#EAECF0') + ';background:' + (prio>=n?'#FEF3C7':'transparent') + ';cursor:pointer;font-weight:900;font-size:.73rem;color:' + (prio>=n?'#D97706':'#D1D5DB') + ';font-family:inherit">' + n + '</button>';
+  }
+  html += '</div></div>';
+  html += '<input type="hidden" id="pfPrio" value="' + prio + '">';
+
+  // Disponibilités
+  html += '<div style="background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:12px;padding:.85rem">'
+    + '<div style="font-weight:800;font-size:.73rem;color:#111;margin-bottom:.6rem">Disponibilités</div>';
+
+  html += '<div id="pfAvailList">';
+  _editAvails.forEach(function(av,i){ html += planAvailRowHtml(av,i); });
+  html += '</div>';
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:.4rem;align-items:end;margin-top:.5rem">'
+    + '<div><label style="display:block;font-size:.58rem;font-weight:700;color:#9CA3AF;margin-bottom:2px">Jour</label>'
+    + '<select id="pfAday" style="background:#fff;border:1.5px solid #EAECF0;border-radius:7px;color:#111;padding:.38rem .5rem;font-size:.78rem;width:100%;outline:none;font-family:inherit">'
+    + PLAN_DAYS.map(function(d,i){return '<option value="'+PLAN_DKEYS[i]+'">'+d+'</option>';}).join('')
+    + '</select></div>'
+    + '<div><label style="display:block;font-size:.58rem;font-weight:700;color:#9CA3AF;margin-bottom:2px">Début</label><input type="time" id="pfAstart" value="09:00" style="background:#fff;border:1.5px solid #EAECF0;border-radius:7px;color:#111;padding:.38rem .5rem;font-size:.78rem;width:100%;outline:none;font-family:inherit"></div>'
+    + '<div><label style="display:block;font-size:.58rem;font-weight:700;color:#9CA3AF;margin-bottom:2px">Fin</label><input type="time" id="pfAend" value="10:00" style="background:#fff;border:1.5px solid #EAECF0;border-radius:7px;color:#111;padding:.38rem .5rem;font-size:.78rem;width:100%;outline:none;font-family:inherit"></div>'
+    + '<div><label style="display:block;font-size:.58rem;font-weight:700;color:#9CA3AF;margin-bottom:2px">Type</label><select id="pfAtype" style="background:#fff;border:1.5px solid #EAECF0;border-radius:7px;color:#111;padding:.38rem .5rem;font-size:.78rem;width:100%;outline:none;font-family:inherit"><option value="preferred">Souhaité</option><option value="possible">Possible</option></select></div>'
+    + '<button type="button" onclick="planAddAvail()" style="background:#0066CC;border:none;color:#fff;border-radius:9px;width:36px;height:36px;font-size:1.2rem;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>'
+    + '</div></div>';
+
+  html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:.5rem">'
+    + '<button onclick="planCloseModal()" style="background:#F3F4F6;border:none;color:#6B7280;border-radius:9px;padding:.45rem 1.1rem;cursor:pointer;font-weight:600;font-size:.82rem;font-family:inherit">Annuler</button>'
+    + '<button onclick="planSaveStudent()" style="background:#0066CC;border:none;color:#fff;border-radius:9px;padding:.45rem 1.3rem;cursor:pointer;font-weight:700;font-size:.82rem;font-family:inherit">Enregistrer</button>'
+    + '</div>';
+  html += '</div>';
+  planOpenModal(html);
+}
+
+window.planSelectCycle = function(cid) {
+  document.getElementById('pfCid').value = cid;
+  var cycles = PS.cycles || PLAN_DEFAULT_CYCLES;
+  cycles.forEach(function(c) {
+    var btn = document.getElementById('pfc_' + c.id);
+    if (!btn) return;
+    btn.style.background = cid===c.id ? c.color : c.light;
+    btn.style.borderColor = cid===c.id ? c.color : c.color+'40';
+    btn.style.color = cid===c.id ? '#fff' : c.color;
+  });
+};
+
+window.planSelectPrio = function(n) {
+  document.getElementById('pfPrio').value = n;
+  for (var i=1;i<=5;i++) {
+    var btn = document.getElementById('pfp_'+i);
+    if (!btn) continue;
+    btn.style.borderColor = i<=n ? '#F59E0B' : '#EAECF0';
+    btn.style.background  = i<=n ? '#FEF3C7' : 'transparent';
+    btn.style.color       = i<=n ? '#D97706' : '#D1D5DB';
+  }
+};
+
+window.planAddAvail = function() {
+  var day   = document.getElementById('pfAday').value;
+  var start = document.getElementById('pfAstart').value;
+  var end   = document.getElementById('pfAend').value;
+  var type  = document.getElementById('pfAtype').value;
+  if (pt2m(end) <= pt2m(start)) { planFlash('La fin doit être après le début'); return; }
+  _editAvails.push({id:planId(), day:day, start:start, end:end, type:type});
+  var list = document.getElementById('pfAvailList');
+  if (list) {
+    list.innerHTML = '';
+    _editAvails.forEach(function(av,i){ list.innerHTML += planAvailRowHtml(av,i); });
+  }
+};
+
+window.planRemoveAvail = function(idx) {
+  _editAvails.splice(idx, 1);
+  var list = document.getElementById('pfAvailList');
+  if (list) {
+    list.innerHTML = '';
+    _editAvails.forEach(function(av,i){ list.innerHTML += planAvailRowHtml(av,i); });
+  }
+};
+
+window.planSaveStudent = function() {
+  var name  = (document.getElementById('pfName').value||'').trim();
+  var instr = (document.getElementById('pfInst').value||'').trim();
+  var cid   = document.getElementById('pfCid').value;
+  var prio  = parseInt(document.getElementById('pfPrio').value)||3;
+  if (!name) { planFlash('Entrez un nom'); return; }
+  var cy = (PS.cycles||PLAN_DEFAULT_CYCLES).find(function(c){return c.id===cid;}) || PLAN_DEFAULT_CYCLES[0];
+  if (_editStudentId) {
+    PS.students = PS.students.map(function(s) {
+      return s.id===_editStudentId ? Object.assign({},s,{name:name,instrument:instr,cycle:cy,availabilities:_editAvails,priority:prio}) : s;
+    });
+  } else {
+    PS.students.push({id:planId(), name:name, instrument:instr, cycle:cy, availabilities:_editAvails.slice(), priority:prio});
+  }
+  planCloseModal();
+  planSave();
+  planRender();
+};
+
+window.planDelStudent = function(sid) {
+  PS.students = PS.students.filter(function(s){return s.id!==sid;});
+  PS.locked   = PS.locked.filter(function(l){return l.studentId!==sid;});
+  if (PS.sch) PLAN_DKEYS.forEach(function(d){if(PS.sch[d])PS.sch[d]=PS.sch[d].filter(function(s){return s.studentId!==sid;});});
+  planSave();
+  planRender();
+};
+
+// Plages de travail
+var _editWorkSlots = [];
+var _editBreaks    = [];
+
+window.planOpenWorkSlots = function() {
+  _editWorkSlots = PS.workSlots.map(function(w){return Object.assign({},w);});
+  _editBreaks    = PS.breaks.map(function(b){return Object.assign({},b);});
+  planRenderWorkSlotsForm();
+};
+
+function planRenderWorkSlotsForm() {
+  var html = planModalHdr('Plages de travail');
+  html += '<div style="display:flex;flex-direction:column;gap:1rem">';
+
+  // Workslots
+  html += '<div style="background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:12px;padding:.85rem">'
+    + '<div style="font-weight:800;font-size:.73rem;color:#0066CC;margin-bottom:.6rem">Plages de cours</div>'
+    + '<div id="wsSlotList">' + _editWorkSlots.map(function(w,i){ return planWorkRowHtml(w,i,'ws'); }).join('') + '</div>'
+    + planSlotAddRow('ws', '#0066CC')
+    + '</div>';
+
+  // Breaks
+  html += '<div style="background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:12px;padding:.85rem">'
+    + '<div style="font-weight:800;font-size:.73rem;color:#DC2626;margin-bottom:.6rem">Pauses</div>'
+    + '<div id="wsBrkList">' + _editBreaks.map(function(b,i){ return planWorkRowHtml(b,i,'bk'); }).join('') + '</div>'
+    + planSlotAddRow('bk', '#DC2626')
+    + '</div>';
+
+  html += '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button onclick="planCloseModal()" style="background:#F3F4F6;border:none;color:#6B7280;border-radius:9px;padding:.45rem 1.1rem;cursor:pointer;font-weight:600;font-size:.82rem;font-family:inherit">Annuler</button>'
+    + '<button onclick="planSaveWorkSlots()" style="background:#0066CC;border:none;color:#fff;border-radius:9px;padding:.45rem 1.3rem;cursor:pointer;font-weight:700;font-size:.82rem;font-family:inherit">Enregistrer</button>'
+    + '</div></div>';
+  planOpenModal(html);
+}
+
+function planWorkRowHtml(w, i, type) {
+  var dl = PLAN_DAYS[PLAN_DKEYS.indexOf(w.day)]||w.day;
+  return '<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #EAECF0;border-radius:7px;padding:.3rem .7rem;font-size:.78rem;margin-bottom:3px">'
+    + '<strong>' + dl + '</strong> ' + w.start + '–' + w.end
+    + '<button onclick="planRemoveSlot(\'' + type + '\',' + i + ')" style="background:none;border:none;color:#DC2626;cursor:pointer;margin-left:auto;font-size:.88rem">×</button>'
+    + '</div>';
+}
+
+function planSlotAddRow(type, color) {
+  return '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.4rem;align-items:end;margin-top:.5rem">'
+    + '<div><select id="' + type + 'Day" style="background:#fff;border:1.5px solid #EAECF0;border-radius:7px;color:#111;padding:.35rem .5rem;font-size:.76rem;width:100%;outline:none;font-family:inherit">'
+    + PLAN_DAYS.map(function(d,i){return '<option value="'+PLAN_DKEYS[i]+'">'+d+'</option>';}).join('')
+    + '</select></div>'
+    + '<div><input type="time" id="' + type + 'Start" value="09:00" style="background:#fff;border:1.5px solid #EAECF0;border-radius:7px;color:#111;padding:.35rem .5rem;font-size:.76rem;width:100%;outline:none;font-family:inherit"></div>'
+    + '<div><input type="time" id="' + type + 'End" value="12:00" style="background:#fff;border:1.5px solid #EAECF0;border-radius:7px;color:#111;padding:.35rem .5rem;font-size:.76rem;width:100%;outline:none;font-family:inherit"></div>'
+    + '<button type="button" onclick="planAddSlot(\'' + type + '\')" style="background:' + color + ';border:none;color:#fff;border-radius:8px;width:34px;height:34px;font-size:1.1rem;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>'
+    + '</div>';
+}
+
+window.planAddSlot = function(type) {
+  var day   = document.getElementById(type+'Day').value;
+  var start = document.getElementById(type+'Start').value;
+  var end   = document.getElementById(type+'End').value;
+  if (pt2m(end) <= pt2m(start)) { planFlash('La fin doit être après le début'); return; }
+  var item = {id:planId(), day:day, start:start, end:end};
+  var listId, arr;
+  if (type==='ws') { _editWorkSlots.push(item); listId='wsSlotList'; arr=_editWorkSlots; }
+  else              { _editBreaks.push(item);    listId='wsBrkList';  arr=_editBreaks; }
+  var list = document.getElementById(listId);
+  if (list) list.innerHTML = arr.map(function(w,i){return planWorkRowHtml(w,i,type);}).join('');
+};
+
+window.planRemoveSlot = function(type, idx) {
+  var listId, arr;
+  if (type==='ws') { _editWorkSlots.splice(idx,1); listId='wsSlotList'; arr=_editWorkSlots; }
+  else              { _editBreaks.splice(idx,1);    listId='wsBrkList';  arr=_editBreaks; }
+  var list = document.getElementById(listId);
+  if (list) list.innerHTML = arr.map(function(w,i){return planWorkRowHtml(w,i,type);}).join('');
+};
+
+window.planSaveWorkSlots = function() {
+  PS.workSlots = _editWorkSlots.slice();
+  PS.breaks    = _editBreaks.slice();
+  planCloseModal();
+  planSave();
+  planRender();
+};
+
+// Fiche élève (lecture seule)
+window.planOpenStudentCard = function(sid) {
+  var st = PS.students.find(function(s){return s.id===sid;});
+  if (!st) return;
+  var cy = (PS.cycles||[]).find(function(c){return st.cycle&&c.id===st.cycle.id;});
+  var ini = st.name.split(' ').map(function(n){return n[0];}).slice(0,2).join('');
+  var slot = null, sDay = null;
+  PLAN_DKEYS.forEach(function(d){ var sl=(PS.sch&&PS.sch[d]||[]).find(function(s){return s.studentId===sid;}); if(sl){slot=sl;sDay=d;} });
+
+  var html = planModalHdr('Fiche élève');
+  html += '<div style="background:' + (cy?cy.light:'#F3F4F6') + ';border-radius:12px;padding:1rem;display:flex;align-items:center;gap:12px;margin-bottom:1rem">'
+    + '<div style="width:50px;height:50px;border-radius:12px;background:' + (cy?cy.color:'#0066CC') + ';display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1rem;color:#fff;flex-shrink:0">' + ini + '</div>'
+    + '<div><div style="font-weight:800;font-size:1.05rem;color:#111">' + escHtml(st.name) + '</div>'
+    + '<div style="font-size:.75rem;color:#8A92A0;margin-top:2px">' + (st.instrument?escHtml(st.instrument)+' · ':'') + (cy?escHtml(cy.label)+' '+cy.duration+'min':'') + '</div></div>'
+    + '</div>';
+
+  if (slot) {
+    html += '<div style="background:#fff;border:1.5px solid #EAECF0;border-radius:10px;padding:.85rem;margin-bottom:1rem">'
+      + '<div style="font-size:.62rem;font-weight:800;color:#9CA3AF;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Créneau attribué</div>'
+      + '<div style="display:flex;align-items:center;gap:8px"><div style="width:4px;height:38px;background:' + (cy?cy.color:'#0066CC') + ';border-radius:2px"></div>'
+      + '<div><div style="font-weight:900;font-size:1rem;color:#111">' + PLAN_DAYS[PLAN_DKEYS.indexOf(sDay)] + '</div>'
+      + '<div style="font-size:.78rem;color:#8A92A0">' + pm2t(slot.startMin) + ' – ' + pm2t(slot.endMin) + '</div></div></div>'
+      + '</div>';
+  } else {
+    html += '<div style="background:#FEE2E2;border:1.5px solid #FCA5A5;border-radius:10px;padding:.75rem;margin-bottom:1rem;color:#DC2626;font-size:.82rem;font-weight:700">Non planifié</div>';
+  }
+
+  html += '<div style="font-size:.62rem;font-weight:800;color:#9CA3AF;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Disponibilités</div>';
+  st.availabilities.forEach(function(a) {
+    var dl = PLAN_DAYS[PLAN_DKEYS.indexOf(a.day)]||a.day;
+    html += '<div style="display:flex;align-items:center;gap:7px;background:#F8F9FB;border:1.5px solid #EAECF0;border-radius:7px;padding:.3rem .7rem;font-size:.78rem;margin-bottom:3px">'
+      + (a.type==='preferred'?'<span style="background:#0066CC;color:#fff;border-radius:4px;font-size:.5rem;padding:1px 5px;font-weight:800">PREF</span>':'<span style="background:#F3F4F6;color:#9CA3AF;border-radius:4px;font-size:.5rem;padding:1px 5px;font-weight:800">POSS</span>')
+      + '<strong>' + dl + '</strong> ' + a.start + '–' + a.end + '</div>';
+  });
+
+  html += '<div style="display:flex;gap:8px;margin-top:1rem">'
+    + '<button onclick="planCloseModal();planOpenEditStudent(\'' + sid + '\')" style="background:#F3F4F6;border:none;color:#6B7280;border-radius:9px;padding:.45rem 1rem;cursor:pointer;font-weight:600;font-size:.82rem;font-family:inherit">Modifier</button>'
+    + '<button onclick="planCloseModal()" style="background:#0066CC;border:none;color:#fff;border-radius:9px;padding:.45rem 1.2rem;cursor:pointer;font-weight:700;font-size:.82rem;font-family:inherit;margin-left:auto">Fermer</button>'
+    + '</div>';
+
+  planOpenModal(html);
+};
+
+// Lock/unlock
+window.planToggleLock = function(day, sid, startMin) {
+  var isLk = PS.locked.some(function(l){return l.studentId===sid&&l.day===day;});
+  if (isLk) {
+    PS.locked = PS.locked.filter(function(l){return !(l.studentId===sid&&l.day===day);});
+  } else {
+    var slot = PS.sch&&(PS.sch[day]||[]).find(function(s){return s.studentId===sid;});
+    PS.locked.push({studentId:sid, day:day, startMin:startMin, availType:(slot&&slot.availType)||'preferred'});
+  }
+  planSave();
+  planRender();
+};
+
+// Demo
+window.planLoadDemo = function() {
+  var demoWS=[{id:'dw1',day:'lundi',start:'09:00',end:'12:30'},{id:'dw2',day:'lundi',start:'14:00',end:'18:30'},{id:'dw3',day:'mercredi',start:'14:00',end:'19:00'},{id:'dw4',day:'jeudi',start:'09:00',end:'12:30'},{id:'dw5',day:'jeudi',start:'14:00',end:'18:00'},{id:'dw6',day:'vendredi',start:'09:00',end:'12:00'},{id:'dw7',day:'vendredi',start:'14:00',end:'17:30'}];
+  var names=['Emma Martin','Lucas Bernard','Léa Dubois','Nathan Thomas','Chloé Robert','Hugo Richard','Inès Petit','Arthur Durand','Manon Leroy','Tom Moreau'];
+  var insts=['Piano','Violon','Guitare','Violoncelle','Flûte','Clarinette','Trompette','Alto','Piano','Violon'];
+  var cycles = PS.cycles || PLAN_DEFAULT_CYCLES;
+  PS.workSlots = demoWS;
+  PS.breaks = [{id:'db1',day:'lundi',start:'12:30',end:'14:00'},{id:'db2',day:'jeudi',start:'12:30',end:'14:00'}];
+  PS.students = names.map(function(name,i) {
+    var cy = cycles[i%cycles.length];
+    var ws = demoWS[i%demoWS.length];
+    var base = pt2m(ws.start) + (i%3)*60;
+    return {id:planId(), name:name, instrument:insts[i], cycle:cy,
+      availabilities:[{id:planId(), day:ws.day, start:pm2t(base), end:pm2t(Math.min(pt2m(ws.end), base+90)), type:'preferred'}],
+      priority: 3
+    };
+  });
+  PS.locked = []; PS.sch = null;
+  planSave();
+  planFlash('Démo chargée !');
+  planRender();
+};
+
+// ═══════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════
+window.planSetView = function(v) { PS.view = v; planRender(); };
+
+// ═══════════════════════════════════════════════════════════
+// INTÉGRATION DANS MAESTRO
+// ═══════════════════════════════════════════════════════════
+
+// Exposer planGenerate globalement
+window.planGenerate = planGenerate;
+window.planRender   = planRender;
+
+// Ouvrir l'outil (appelé depuis outilsPage)
+window.openPlanningTool = function() {
+  // Cacher la vue principale de Maestro
+  var main = document.getElementById('aM');
+  if (!main) return;
+  main.style.display = 'none';
+
+  // Créer ou réutiliser le conteneur
+  var app = document.getElementById('planApp');
+  if (!app) {
+    app = document.createElement('div');
+    app.id = 'planApp';
+    app.style.cssText = 'position:fixed;inset:0;z-index:400;display:flex;flex-direction:column;background:#F7F8FA;font-family:\'DM Sans\',sans-serif;overflow:hidden';
+    document.body.appendChild(app);
+  }
+  app.style.display = 'flex';
+
+  // Charger les données depuis Firebase puis afficher
+  planResetState();
+  planLoad(function() {
+    planRender();
+  });
+};
+
+// Retour vers Maestro
+window.planExitToMaestro = function() {
+  var app = document.getElementById('planApp');
+  if (app) app.style.display = 'none';
+  var main = document.getElementById('aM');
+  if (main) main.style.display = '';
+};
+
+// ─── Patch outilsPage : ajouter le tile Planning ──────────
+var _origOutilsPage = typeof outilsPage === 'function' ? outilsPage : null;
+window.outilsPage = function(el) {
+  // Appeler l'original pour le reste des outils
+  if (_origOutilsPage) _origOutilsPage(el);
+
+  // Injecter la carte Planning en tête
+  var tile = document.createElement('div');
+  tile.innerHTML = '<div onclick="openPlanningTool()" style="background:#fff;border:2px solid #0066CC;border-radius:14px;padding:16px 14px;text-align:center;cursor:pointer;transition:all .2s;box-shadow:0 2px 12px rgba(0,102,204,.08);margin-bottom:12px" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 6px 20px rgba(0,102,204,.15)\'" onmouseout="this.style.transform=\'none\';this.style.boxShadow=\'0 2px 12px rgba(0,102,204,.08)\'">'
+    + '<div style="font-size:1.9rem;margin-bottom:6px">📅</div>'
+    + '<div style="font-size:.82rem;font-weight:800;color:#0066CC">Planning cours</div>'
+    + '<div style="font-size:.66rem;color:#8A92A0;margin-top:3px;line-height:1.35">Planification élèves,<br>grille horaire, algo</div>'
+    + '</div>';
+  el.insertBefore(tile, el.firstChild);
+};
+
+// Helper escHtml local
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+console.log('[Maestro] Planning conservatoire chargé ✓');
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
 </body>
 </html>
