@@ -7260,5 +7260,1982 @@ console.log('[Maestro] Planning v2 chargé ✓ (drag&drop, modales fixes)');
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════ -->
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PATCH CONSERVATOIRE — PARTIE 1 / 2
+     Coller avant </body>, après les patches v24 et avatar v6.
+     ════════════════════════════════════════════════════════════════════ -->
+
+<style id="plan-css">
+/* ── PLANAPP OVERLAY ── */
+#planApp {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: #F7F8FA;
+  flex-direction: column;
+  font-family: 'Nunito', sans-serif;
+  overflow: hidden;
+}
+body.dark #planApp { background: #0F1117; }
+#planApp.on { display: flex; }
+
+/* ── PLAN TOPBAR ── */
+#planApp .ptb {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: rgba(255,255,255,.95);
+  border-bottom: 1px solid #EAECF0;
+  box-shadow: 0 1px 14px rgba(91,79,207,.06);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(16px);
+}
+body.dark #planApp .ptb {
+  background: rgba(15,14,23,.95);
+  border-bottom-color: #252836;
+}
+#planApp .ptb-back {
+  display: flex; align-items: center; gap: 5px;
+  background: transparent;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 20px;
+  padding: 4px 11px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .72rem; font-weight: 700;
+  color: #6B7280; cursor: pointer;
+  transition: all .18s;
+}
+#planApp .ptb-back:hover { border-color: #5b4fcf; color: #5b4fcf; }
+body.dark #planApp .ptb-back { border-color: #2a2840; color: #8888a8; }
+#planApp .ptb-title {
+  flex: 1;
+  font-family: 'Lora', serif;
+  font-size: 1.05rem; font-weight: 600;
+  color: #1e1a2e;
+}
+body.dark #planApp .ptb-title { color: #e8e6f0; }
+#planApp .ptb-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: none;
+  font-family: 'Nunito', sans-serif;
+  font-size: .75rem; font-weight: 800;
+  cursor: pointer; transition: all .18s;
+}
+#planApp .ptb-btn-p { background: #5b4fcf; color: #fff; }
+#planApp .ptb-btn-p:hover { background: #4a3fb8; }
+#planApp .ptb-btn-s {
+  background: transparent;
+  border: 1.5px solid #E5E7EB;
+  color: #6B7280;
+}
+#planApp .ptb-btn-s:hover { border-color: #5b4fcf; color: #5b4fcf; }
+body.dark #planApp .ptb-btn-s { border-color: #252836; color: #8888a8; }
+
+/* ── PLAN CONTENT ── */
+#planApp .plan-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 14px 40px;
+  min-height: 0;
+}
+
+/* ── PLAN TABS ── */
+#planApp .plan-tabs {
+  display: flex;
+  gap: 3px;
+  background: #EAECF0;
+  padding: 3px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+body.dark #planApp .plan-tabs { background: #252836; }
+#planApp .plan-tab {
+  flex: 1; padding: 6px 4px;
+  border-radius: 7px; border: none;
+  font-family: 'Nunito', sans-serif;
+  font-size: .72rem; font-weight: 700;
+  cursor: pointer; transition: all .18s;
+  background: transparent; color: #9CA3AF;
+}
+#planApp .plan-tab.on {
+  background: #fff; color: #1e1a2e;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+body.dark #planApp .plan-tab.on { background: #1a1925; color: #e8e6f0; }
+
+/* ── PLAN CARDS / ROWS ── */
+#planApp .pcard {
+  background: #fff;
+  border: 1.5px solid #EAECF0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 12px rgba(91,79,207,.05);
+  margin-bottom: 8px;
+}
+body.dark #planApp .pcard { background: #1a1925; border-color: #252836; }
+#planApp .pcard-row {
+  display: flex; align-items: center; gap: 10px;
+}
+#planApp .plabel {
+  display: block;
+  font-size: .62rem; font-weight: 800;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: #9CA3AF; margin-bottom: 4px;
+}
+#planApp .pinput {
+  background: #F8F9FB;
+  border: 1.5px solid #EAECF0;
+  border-radius: 8px;
+  color: #111;
+  padding: 6px 10px;
+  font-family: 'Nunito', sans-serif;
+  font-size: .82rem;
+  outline: none;
+  transition: border .18s;
+  width: 100%;
+}
+body.dark #planApp .pinput { background: #252836; border-color: #2a2840; color: #e8e6f0; }
+#planApp .pinput:focus { border-color: #5b4fcf; }
+
+/* ── AVAILABILITY / BREAK ITEMS ── */
+#planApp .pav-item {
+  display: flex; align-items: center; gap: 8px;
+  background: #F8F9FB;
+  border: 1px solid #EAECF0;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: .78rem;
+  margin-bottom: 4px;
+}
+body.dark #planApp .pav-item { background: #252836; border-color: #2a2840; }
+#planApp .pav-del {
+  margin-left: auto; background: none; border: none;
+  color: #EF4444; cursor: pointer; font-size: .85rem;
+  padding: 0 2px;
+}
+#planApp .pav-pref {
+  font-size: .6rem; font-weight: 800; color: #fff;
+  border-radius: 4px; padding: 1px 5px;
+}
+
+/* ── BADGE ROW ── */
+#planApp .pbadge {
+  display: inline-flex; align-items: center; gap: 5px;
+  border-radius: 8px; padding: 3px 10px;
+  font-size: .72rem; font-weight: 800;
+}
+#planApp .pbadge-green { background: #E8FAF6; border: 1.5px solid #A7EED9; color: #00B894; }
+#planApp .pbadge-red   { background: #FDEAF3; border: 1.5px solid #F9A8D4; color: #E84393; }
+#planApp .pbadge-ora   { background: #FDF0EC; border: 1.5px solid #FBBF9A; color: #E17055; }
+
+/* ── PLAN MODAL OVERLAY (inside #planApp) ── */
+#planApp .pmo {
+  position: absolute;
+  inset: 0;
+  background: rgba(30,26,46,.32);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+#planApp .pmo.on { display: flex; }
+@media (min-width: 600px) {
+  #planApp .pmo.on { align-items: center; padding: 16px; }
+}
+#planApp .pmb {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 20px;
+  width: 100%; max-width: 520px;
+  max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 -8px 40px rgba(91,79,207,.18);
+  animation: planFu .2s ease;
+}
+body.dark #planApp .pmb { background: #1a1925; }
+@media (min-width: 600px) { #planApp .pmb { border-radius: 16px; } }
+@keyframes planFu {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#planApp .pmb h3 {
+  font-family: 'Lora', serif;
+  font-size: 1.2rem; font-weight: 600;
+  color: #1e1a2e; margin-bottom: 14px;
+}
+body.dark #planApp .pmb h3 { color: #e8e6f0; }
+#planApp .pmo-close {
+  float: right;
+  background: #F3F4F6; border: none;
+  border-radius: 8px; width: 28px; height: 28px;
+  cursor: pointer; font-weight: 700; color: #6B7280;
+  display: flex; align-items: center; justify-content: center;
+  margin-left: 10px;
+}
+body.dark #planApp .pmo-close { background: #252836; color: #8888a8; }
+
+/* ── PLAN SCHEDULE GRID ── */
+#planApp .pgrid-wrap {
+  border: 1px solid #EAECF0;
+  border-radius: 12px;
+  overflow: auto;
+  box-shadow: 0 2px 24px rgba(0,0,0,.06);
+  position: relative;
+}
+body.dark #planApp .pgrid-wrap { border-color: #252836; }
+#planApp .pgrid {
+  display: flex;
+  min-width: 100%;
+  user-select: none;
+}
+#planApp .pgrid-time {
+  width: 44px; flex-shrink: 0;
+  background: #FAFBFC;
+  border-right: 1.5px solid #F0F1F5;
+  position: sticky; left: 0; z-index: 10;
+}
+body.dark #planApp .pgrid-time { background: #141720; border-right-color: #252836; }
+#planApp .pgrid-head-cell {
+  height: 40px;
+}
+#planApp .pgrid-row-lbl {
+  display: flex; align-items: flex-start;
+  justify-content: flex-end;
+  padding-right: 6px; padding-top: 4px;
+  font-size: .52rem; color: #8A92A0;
+  font-family: monospace;
+}
+#planApp .pgrid-cols { display: flex; flex: 1; }
+#planApp .pgrid-col {
+  flex: 1; min-width: 90px;
+  border-left: 1.5px solid #F0F1F5;
+  position: relative;
+}
+body.dark #planApp .pgrid-col { border-left-color: #252836; }
+#planApp .pgrid-col:first-child { border-left: none; }
+#planApp .pgrid-col-head {
+  height: 40px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  border-bottom: 2px solid #F0F1F5;
+  position: sticky; top: 0; background: #fff; z-index: 9;
+}
+body.dark #planApp .pgrid-col-head { background: #1a1925; border-bottom-color: #252836; }
+#planApp .pgrid-col-head .pdlabel {
+  font-size: .62rem; font-weight: 900;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+#planApp .pgrid-col-body { position: relative; }
+#planApp .pgrid-hline {
+  position: absolute; left: 0; right: 0;
+  border-bottom: 1px solid #F8F9FB;
+}
+#planApp .pgrid-hline.major { border-bottom-color: #F0F1F5; }
+
+/* ── SLOT BLOCK ── */
+#planApp .pslot {
+  position: absolute; left: 3px; right: 3px;
+  border-radius: 9px;
+  cursor: grab;
+  touch-action: none;
+  overflow: hidden;
+  border: 2px solid transparent;
+  transition: opacity .15s;
+}
+#planApp .pslot.locked { cursor: pointer; }
+#planApp .pslot-bar {
+  position: absolute; top: 0; left: 0;
+  width: 4px; bottom: 0; border-radius: 7px 0 0 7px;
+}
+#planApp .pslot-name {
+  font-size: .7rem; font-weight: 900;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.2;
+}
+#planApp .pslot-time {
+  font-size: .54rem; font-family: monospace;
+  opacity: .8; margin-top: 1px;
+}
+#planApp .pslot-lock {
+  position: absolute; top: 2px; right: 2px;
+  background: none; border: none;
+  border-radius: 4px; font-size: .6rem;
+  cursor: pointer; padding: 1px 3px;
+  line-height: 1;
+}
+
+/* ── DRAG GHOST ── */
+#planGhost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  border-radius: 8px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  font-size: .72rem; font-weight: 800;
+  color: #fff;
+  display: none;
+}
+#planGhost.on { display: block; }
+
+/* ── INLINE GHOST SLOT ── */
+#planApp .pghost-slot {
+  position: absolute;
+  left: 3px; right: 3px;
+  border-radius: 9px;
+  pointer-events: none;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .62rem; font-weight: 800;
+  border: 2px dashed;
+}
+
+/* ── AVAIL HINT ── */
+#planApp .phint {
+  position: absolute; left: 0; right: 0;
+  pointer-events: none; z-index: 3;
+  border-left: 3px solid;
+}
+
+/* ── DASHBOARD BARS ── */
+#planApp .dash-day-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 7px;
+}
+#planApp .dash-bar-bg {
+  flex: 1; background: #F3F4F6;
+  border-radius: 5px; height: 20px;
+  overflow: hidden; position: relative;
+}
+body.dark #planApp .dash-bar-bg { background: #252836; }
+#planApp .dash-bar-fill {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: linear-gradient(90deg, #5b4fcf, #2dbd8f);
+  border-radius: 5px;
+}
+#planApp .dash-bar-pct {
+  position: absolute; right: 5px; top: 50%;
+  transform: translateY(-50%);
+  font-size: .58rem; font-weight: 700; color: #9CA3AF;
+}
+
+/* ── SCORE RING ── */
+#planApp .score-ring { position: relative; display: inline-flex; }
+#planApp .score-ring-txt {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+
+/* ── PRIORITY STARS ── */
+#planApp .prio-btn {
+  width: 30px; height: 30px; border-radius: 7px;
+  border: 2px solid #E5E7EB; background: transparent;
+  cursor: pointer; font-weight: 900; font-size: .72rem;
+  color: #D1D5DB; transition: all .15s;
+  font-family: 'Nunito', sans-serif;
+}
+#planApp .prio-btn.on {
+  border-color: #F59E0B;
+  background: #FEF3C7; color: #D97706;
+}
+
+/* ── CYCLE PILL ── */
+#planApp .cy-pill {
+  padding: 4px 10px; border-radius: 20px;
+  border: 1.5px solid; font-size: .72rem;
+  font-weight: 800; cursor: pointer;
+  transition: all .15s; font-family: 'Nunito', sans-serif;
+}
+
+/* ── TOAST inside planApp ── */
+#planToast {
+  position: absolute; bottom: 20px;
+  left: 50%; transform: translateX(-50%);
+  background: #1A1D27; color: #F0F2F5;
+  border-radius: 8px; padding: 8px 18px;
+  z-index: 100; font-size: .78rem; font-weight: 700;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  white-space: nowrap;
+  display: none;
+  pointer-events: none;
+}
+#planToast.on { display: block; }
+
+/* ── UNPLACED DIAG ── */
+#planApp .unpl-item {
+  background: #FFF5F5; border: 1.5px solid #FED7D7;
+  border-radius: 10px; padding: 10px 12px;
+  display: flex; gap: 10px; align-items: flex-start;
+  margin-bottom: 6px;
+}
+body.dark #planApp .unpl-item { background: #2a1210; border-color: #5a2020; }
+
+/* ── WEIGHT SLIDER ── */
+#planApp .pw-slider { width: 100%; accent-color: #5b4fcf; }
+
+/* ── DAY TOGGLE STRIP ── */
+#planApp .pday-strip {
+  display: flex; gap: 4px; flex-wrap: wrap;
+}
+#planApp .pday-btn {
+  padding: 4px 10px; border-radius: 8px;
+  border: 1.5px solid #E5E7EB;
+  background: #fff; cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  font-size: .72rem; font-weight: 700;
+  color: #374151; transition: all .15s;
+}
+body.dark #planApp .pday-btn { background: #1a1925; border-color: #252836; color: #8888a8; }
+#planApp .pday-btn.on { color: #fff; border-color: transparent; }
+
+/* ── RESPNSIVE ── */
+@media (max-width: 600px) {
+  #planApp .pgrid-col { min-width: 70px; }
+  #planApp .plan-body { padding: 10px 8px 40px; }
+}
+</style>
+
+<script id="plan-engine">
+// ════════════════════════════════════════════════════════
+//  CONSERVATOIRE PLANNING — MOTEUR (vanilla JS)
+// ════════════════════════════════════════════════════════
+(function(){
+'use strict';
+
+// ── CONSTANTS ──────────────────────────────────────────
+var PLAN_DEFAULT_CYCLES = [
+  {id:'c1',label:'Cycle 1',duration:30,color:'#0066CC',light:'#E8F0FB'},
+  {id:'c2',label:'Cycle 2',duration:45,color:'#00875A',light:'#E3F5ED'},
+  {id:'c3',label:'CEM',    duration:50,color:'#8B5CF6',light:'#EDE9FE'},
+  {id:'c4',label:'COP',    duration:60,color:'#D97706',light:'#FEF3C7'},
+  {id:'c5',label:'Perso',  duration:30,color:'#DC2626',light:'#FEE2E2'},
+];
+var PLAN_DAYS  = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+var PLAN_DKEYS = ['lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+var PLAN_DCOL  = ['#0066CC','#8B5CF6','#00875A','#D97706','#DC2626','#6B7280'];
+var P_START = 8, P_END = 20, P_ROW = 48, P_HEAD = 40;
+
+// ── STATE ──────────────────────────────────────────────
+var PL = {
+  cycles:   JSON.parse(JSON.stringify(PLAN_DEFAULT_CYCLES)),
+  students: [],
+  sch:      null,
+  locked:   [],
+  teacher:  {id:'tp', name:'Mon Profil', instrument:'', color:'#5b4fcf', workSlots:[], breaks:[]},
+  weights:  {wish:7, compact:5, stab:4},
+  genMode:  'wishes',
+  genMethod:'greedy',
+  genSeed:  0,
+  baseline: null,
+  unplacedDiag: [],
+  activeTab:    'students',
+  schedView:    'week',
+  schedDay:     0,
+  undoStack:    [],
+  redoStack:    [],
+  swapResults:  [],
+  // modal state
+  modal: null,
+  editStudent: null,
+  cardStudent: null,
+};
+
+var planUidC = 1;
+function planUid(){ return 'pu'+(planUidC++); }
+
+// ── UTILS ──────────────────────────────────────────────
+function t2m(t){ var p=t.split(':').map(Number); return p[0]*60+p[1]; }
+function m2t(m){ return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function m2px(m){ return ((m-P_START*60)/30)*P_ROW; }
+function snapM(raw){ return Math.round((raw-P_START*60)/15)*15+P_START*60; }
+function fmtH(m){ var h=Math.floor(m/60),mn=m%60; return mn?h+'h'+mn:h+'h'; }
+
+function teacherAllows(day, s, e, teacher) {
+  if (!teacher||!teacher.workSlots||!teacher.workSlots.length) return true;
+  if (!teacher.workSlots.filter(function(w){return w.day===day;})
+      .some(function(w){return t2m(w.start)<=s && e<=t2m(w.end);})) return false;
+  return !teacher.breaks.filter(function(b){return b.day===day;})
+    .some(function(b){return !(e<=t2m(b.start)||s>=t2m(b.end));});
+}
+
+// ── SCHEDULER ──────────────────────────────────────────
+function buildSchedule(students, locked, teacher, mode, seed) {
+  mode = mode||'wishes'; seed = seed||0;
+  var sch = {}; PLAN_DKEYS.forEach(function(d){sch[d]=[];});
+  function clash(day, s, e, xid){
+    return sch[day].some(function(sl){return sl.studentId!==xid && !(e<=sl.startMin||s>=sl.endMin);});
+  }
+  locked.forEach(function(lk){
+    var st=students.find(function(s){return s.id===lk.studentId;});
+    if(!st)return;
+    sch[lk.day].push({studentId:lk.studentId,startMin:lk.startMin,endMin:lk.startMin+st.cycle.duration,locked:true,availType:lk.availType||'preferred'});
+  });
+  function seededShuffle(arr, s){
+    var a=arr.slice(), n=s*9301+49297;
+    for(var i=a.length-1;i>0;i--){n=(n*9301+49297)%233280;var j=Math.floor((n/233280)*(i+1));var tmp=a[i];a[i]=a[j];a[j]=tmp;}
+    return a;
+  }
+  var unlocked = students.filter(function(s){return !locked.some(function(l){return l.studentId===s.id;});});
+  unlocked = unlocked.slice().sort(function(a,b){
+    var pa=(b.priority||3)-(a.priority||3);
+    if(pa!==0)return pa;
+    return a.availabilities.length-b.availabilities.length;
+  });
+  if(seed>0) unlocked=seededShuffle(unlocked,seed);
+
+  unlocked.forEach(function(st){
+    var placed=false;
+    var wins = st.availabilities.filter(function(a){return a.type==='preferred';})
+      .concat(st.availabilities.filter(function(a){return a.type==='possible';}));
+    if(seed>0){
+      var pref=seededShuffle(wins.filter(function(a){return a.type==='preferred';}),seed+st.id.length);
+      var poss=seededShuffle(wins.filter(function(a){return a.type==='possible';}),seed+st.id.length+1);
+      wins=pref.concat(poss);
+    }
+    if(mode==='compact'){
+      var candidates=[];
+      wins.forEach(function(av){
+        var ws=t2m(av.start),we=t2m(av.end),dur=st.cycle.duration;
+        for(var tt=ws;tt+dur<=we;tt+=30){
+          if(!teacherAllows(av.day,tt,tt+dur,teacher)||clash(av.day,tt,tt+dur,st.id))continue;
+          var dayBusy=(sch[av.day]||[]).length;
+          candidates.push({day:av.day,startMin:tt,endMin:tt+dur,availType:av.type,score:-dayBusy*1000+tt});
+        }
+      });
+      if(candidates.length>0){
+        candidates.sort(function(a,b){return a.score-b.score;});
+        var best=candidates[0];
+        sch[best.day].push({studentId:st.id,startMin:best.startMin,endMin:best.endMin,locked:false,availType:best.availType});
+        placed=true;
+      }
+    } else {
+      wins.forEach(function(av){
+        if(placed)return;
+        var ws=t2m(av.start),we=t2m(av.end),dur=st.cycle.duration;
+        for(var tt=ws;tt+dur<=we;tt+=30){
+          if(!teacherAllows(av.day,tt,tt+dur,teacher)||clash(av.day,tt,tt+dur,st.id))continue;
+          sch[av.day].push({studentId:st.id,startMin:tt,endMin:tt+dur,locked:false,availType:av.type});
+          placed=true;break;
+        }
+      });
+    }
+  });
+  return sch;
+}
+
+function listCandidates(student, teacher){
+  var dur=student.cycle.duration;
+  var wins=student.availabilities.filter(function(a){return a.type==='preferred';})
+    .concat(student.availabilities.filter(function(a){return a.type==='possible';}));
+  var cands=[];
+  wins.forEach(function(av){
+    var ws=t2m(av.start),we=t2m(av.end);
+    for(var tt=ws;tt+dur<=we;tt+=30){
+      if(!teacherAllows(av.day,tt,tt+dur,teacher))continue;
+      cands.push({day:av.day,startMin:tt,endMin:tt+dur,availType:av.type});
+    }
+  });
+  return cands;
+}
+function conflictsInPlan(plan, day, sMin, eMin, excludeId){
+  var cl=[];
+  Object.keys(plan).forEach(function(sid){
+    if(sid===excludeId)return;
+    var slot=plan[sid];
+    if(slot.day===day && !(eMin<=slot.startMin||sMin>=slot.endMin)) cl.push(sid);
+  });
+  return cl;
+}
+function tryPlaceReloc(sid, plan, students, teacher, locked, depth, maxDepth, visited){
+  if(depth>maxDepth)return false;
+  var st=students.find(function(s){return s.id===sid;});
+  if(!st)return false;
+  if(locked.some(function(l){return l.studentId===sid;})&&plan[sid])return true;
+  var cands=listCandidates(st,teacher);
+  for(var ci=0;ci<cands.length;ci++){
+    var cand=cands[ci];
+    var lockedClash=locked.some(function(lk){
+      var lslot=plan[lk.studentId];
+      return lslot&&lslot.day===cand.day&&!(cand.endMin<=lslot.startMin||cand.startMin>=lslot.endMin);
+    });
+    if(lockedClash)continue;
+    var clashing=conflictsInPlan(plan,cand.day,cand.startMin,cand.endMin,sid);
+    if(clashing.length===0){plan[sid]=cand;return true;}
+    if(depth>=maxDepth)continue;
+    var saved={};var ok=true;var prevSid=plan[sid];
+    plan[sid]=cand;
+    for(var ki=0;ki<clashing.length;ki++){
+      var otherId=clashing[ki];
+      if(visited.has(otherId)||locked.some(function(l){return l.studentId===otherId;})){ok=false;break;}
+      saved[otherId]=plan[otherId];
+      delete plan[otherId];
+      visited.add(otherId);
+      var success=tryPlaceReloc(otherId,plan,students,teacher,locked,depth+1,maxDepth,visited);
+      visited.delete(otherId);
+      if(!success){ok=false;break;}
+    }
+    if(ok)return true;
+    Object.keys(saved).forEach(function(k){if(saved[k])plan[k]=saved[k];else delete plan[k];});
+    if(prevSid)plan[sid]=prevSid;else delete plan[sid];
+  }
+  return false;
+}
+function buildScheduleMaxCoverage(students, locked, teacher, maxDepth){
+  maxDepth=maxDepth||3;
+  var plan={};
+  locked.forEach(function(lk){
+    var st=students.find(function(s){return s.id===lk.studentId;});
+    if(!st)return;
+    plan[lk.studentId]={day:lk.day,startMin:lk.startMin,endMin:lk.startMin+st.cycle.duration,availType:lk.availType||'preferred'};
+  });
+  var unlocked=students.filter(function(s){return !locked.some(function(l){return l.studentId===s.id;});})
+    .map(function(s){return {s:s,cnt:listCandidates(s,teacher).length};})
+    .sort(function(a,b){var pp=(b.s.priority||3)-(a.s.priority||3);if(pp!==0)return pp;return a.cnt-b.cnt;})
+    .map(function(x){return x.s;});
+  unlocked.forEach(function(st){
+    if(plan[st.id])return;
+    tryPlaceReloc(st.id,plan,students,teacher,locked,0,maxDepth,new Set([st.id]));
+  });
+  var sch={};PLAN_DKEYS.forEach(function(d){sch[d]=[];});
+  Object.keys(plan).forEach(function(sid){
+    var slot=plan[sid];
+    sch[slot.day].push({studentId:sid,startMin:slot.startMin,endMin:slot.endMin,
+      locked:locked.some(function(l){return l.studentId===sid;}),availType:slot.availType});
+  });
+  return sch;
+}
+
+function diagnoseUnplaced(student, sch, teacher){
+  if(!student.availabilities.length)return 'Aucune disponibilité renseignée';
+  var anyTeacherOk=false,anyFreeSlot=false;
+  student.availabilities.forEach(function(av){
+    var ws=t2m(av.start),we=t2m(av.end),dur=student.cycle.duration;
+    for(var tt=ws;tt+dur<=we;tt+=30){
+      if(teacherAllows(av.day,tt,tt+dur,teacher)){
+        anyTeacherOk=true;
+        if(!(sch[av.day]||[]).some(function(s){return !(tt+dur<=s.startMin||tt>=s.endMin);})) anyFreeSlot=true;
+      }
+    }
+  });
+  if(!anyTeacherOk)return 'Hors des plages du professeur';
+  if(!anyFreeSlot) return 'Conflit avec d\'autres élèves déjà placés';
+  return 'Créneau trop court pour '+student.cycle.duration+'min';
+}
+
+function computeScore(sch, students, teacher, weights, baseline){
+  var W=weights?Math.max(0,weights.wish||5):5;
+  var C=weights?Math.max(0,weights.compact||5):5;
+  var S=weights?Math.max(0,weights.stab||5):5;
+  var sumW=(W+C+S)||1;
+  if(!students.length)return {finalScore:0,label:'N/A',color:'#9CA3AF',preferred:0,possible:0,unplaced:0,total:0,fillRate:0,gaps:0};
+  var preferred=0,possible=0,unplaced=0;
+  students.forEach(function(st){
+    var found=false;
+    PLAN_DKEYS.forEach(function(d){
+      var sl=(sch[d]||[]).find(function(s){return s.studentId===st.id;});
+      if(sl){found=true;if(sl.availType==='preferred')preferred++;else possible++;}
+    });
+    if(!found)unplaced++;
+  });
+  var wishScore=Math.round((preferred*100+possible*60)/students.length);
+  var gapPenalty=0,gaps=0;
+  var totalCours=PLAN_DKEYS.reduce(function(a,d){return a+(sch[d]||[]).reduce(function(b,s){return b+(s.endMin-s.startMin);},0);},0);
+  var totalWork=(teacher.workSlots||[]).reduce(function(a,w){return a+(t2m(w.end)-t2m(w.start));},0);
+  var totalBrk=(teacher.breaks||[]).reduce(function(a,b){return a+(t2m(b.end)-t2m(b.start));},0);
+  var totalAvail=Math.max(totalWork-totalBrk,0);
+  var fillRate=totalAvail>0?Math.round(totalCours/totalAvail*100):0;
+  PLAN_DKEYS.forEach(function(d){
+    var sorted=(sch[d]||[]).slice().sort(function(a,b){return a.startMin-b.startMin;});
+    for(var i=1;i<sorted.length;i++){var gap=sorted[i].startMin-sorted[i-1].endMin;if(gap>5){gaps++;gapPenalty+=Math.min(gap,120);}}
+  });
+  var compactScore=Math.max(0,100-Math.round(gapPenalty/Math.max(totalAvail,1)*100));
+  var stabScore=70;
+  if(baseline){
+    var keep=0,tot=0;
+    students.forEach(function(st){
+      var curSlot=null,curDay=null;
+      PLAN_DKEYS.forEach(function(d){var sl=(sch[d]||[]).find(function(s){return s.studentId===st.id;});if(sl){curSlot=sl;curDay=d;}});
+      var prev=baseline[st.id];
+      if(curSlot){tot++;if(prev&&prev.day===curDay&&prev.startMin===curSlot.startMin)keep++;}
+    });
+    stabScore=tot>0?Math.round(keep/tot*100):70;
+  }
+  var finalScore=Math.max(0,Math.min(100,Math.round((wishScore*W+compactScore*C+stabScore*S)/sumW)));
+  var label=finalScore>=90?'Excellent':finalScore>=75?'Très bon':finalScore>=60?'Bon':finalScore>=40?'Moyen':'À optimiser';
+  var color=finalScore>=90?'#00B894':finalScore>=75?'#0984E3':finalScore>=60?'#E17055':finalScore>=40?'#FBBF24':'#E84393';
+  return {finalScore:finalScore,label:label,color:color,preferred:preferred,possible:possible,unplaced:unplaced,total:students.length,fillRate:fillRate,gaps:gaps};
+}
+
+function findSwaps(unplacedList, sch, students, teacher){
+  var results=[];
+  unplacedList.forEach(function(up){
+    var opts=[];
+    PLAN_DKEYS.forEach(function(day){
+      (sch[day]||[]).forEach(function(slot){
+        if(slot.locked)return;
+        var blocker=students.find(function(s){return s.id===slot.studentId;});
+        if(!blocker)return;
+        var fits=up.availabilities.some(function(a){return a.day===day&&t2m(a.start)<=slot.startMin&&slot.startMin+up.cycle.duration<=t2m(a.end);})
+          && teacherAllows(day,slot.startMin,slot.startMin+up.cycle.duration,teacher);
+        if(!fits)return;
+        var found=null;
+        blocker.availabilities.filter(function(a){return a.type==='preferred';}).concat(blocker.availabilities.filter(function(a){return a.type==='possible';}))
+          .forEach(function(av){
+            if(found)return;
+            var ws=t2m(av.start),we=t2m(av.end),dur=blocker.cycle.duration;
+            for(var tt=ws;tt+dur<=we;tt+=30){
+              if(av.day===day&&tt===slot.startMin)continue;
+              if(!teacherAllows(av.day,tt,tt+dur,teacher))continue;
+              if((sch[av.day]||[]).filter(function(s){return s.studentId!==blocker.id;}).some(function(s){return !(tt+dur<=s.startMin||tt>=s.endMin);}))continue;
+              found={day:av.day,start:tt,type:av.type};break;
+            }
+          });
+        if(found)opts.push({blockerId:blocker.id,blockerName:blocker.name,slotDay:day,slotStart:slot.startMin,newDay:found.day,newStart:found.start,newType:found.type});
+      });
+    });
+    if(opts.length)results.push({student:up,swaps:opts.slice(0,3)});
+  });
+  return results;
+}
+
+function computeStats(sch, students, cycles, teacher){
+  var dayStats=PLAN_DKEYS.map(function(day){
+    var slots=sch[day]||[];
+    var cours=slots.reduce(function(a,s){return a+(s.endMin-s.startMin);},0);
+    var work=(teacher.workSlots||[]).filter(function(w){return w.day===day;}).reduce(function(a,w){return a+(t2m(w.end)-t2m(w.start));},0);
+    var brk=(teacher.breaks||[]).filter(function(b){return b.day===day;}).reduce(function(a,b){return a+(t2m(b.end)-t2m(b.start));},0);
+    var avail=Math.max(work-brk,0);
+    return {day:day,label:PLAN_DAYS[PLAN_DKEYS.indexOf(day)],cours:cours,avail:avail,count:slots.length,pct:avail>0?Math.round(cours/avail*100):0};
+  }).filter(function(d){return d.avail>0||d.count>0;});
+  var cycleStats=cycles.map(function(cy){
+    var n=0;
+    PLAN_DKEYS.forEach(function(d){(sch[d]||[]).forEach(function(sl){var st=students.find(function(s){return s.id===sl.studentId;});if(st&&st.cycle&&st.cycle.id===cy.id)n++;});});
+    return Object.assign({},cy,{count:n});
+  }).filter(function(c){return c.count>0;});
+  var totalCours=dayStats.reduce(function(a,d){return a+d.cours;},0);
+  var totalWork=(teacher.workSlots||[]).reduce(function(a,w){return a+(t2m(w.end)-t2m(w.start));},0);
+  var totalBrk=(teacher.breaks||[]).reduce(function(a,b){return a+(t2m(b.end)-t2m(b.start));},0);
+  var totalAvail=Math.max(totalWork-totalBrk,0);
+  return {dayStats:dayStats,cycleStats:cycleStats,totalCours:totalCours,totalAvail:totalAvail,pct:totalAvail>0?Math.round(totalCours/totalAvail*100):0};
+}
+
+// ── FIREBASE SYNC ──────────────────────────────────────
+function planSave(){
+  try {
+    if(typeof fbDb==='undefined'||!fbDb)return;
+    var uid = (typeof currentUser!=='undefined'&&currentUser)?currentUser.uid:'anon';
+    var data={
+      cycles:PL.cycles, students:PL.students, sch:PL.sch,
+      locked:PL.locked, teacher:PL.teacher, weights:PL.weights,
+      genMode:PL.genMode, genMethod:PL.genMethod
+    };
+    fbDb.ref('conservatoire/'+uid).set(data).catch(function(){});
+  } catch(e){}
+}
+function planLoad(cb){
+  try {
+    if(typeof fbDb==='undefined'||!fbDb){if(cb)cb();return;}
+    var uid=(typeof currentUser!=='undefined'&&currentUser)?currentUser.uid:'anon';
+    fbDb.ref('conservatoire/'+uid).once('value').then(function(snap){
+      var d=snap.val();
+      if(d){
+        if(d.cycles&&d.cycles.length)PL.cycles=d.cycles;
+        if(d.students&&d.students.length)PL.students=d.students;
+        if(d.sch)PL.sch=d.sch;
+        if(d.locked)PL.locked=d.locked;
+        if(d.teacher)PL.teacher=d.teacher;
+        if(d.weights)PL.weights=d.weights;
+        if(d.genMode)PL.genMode=d.genMode;
+        if(d.genMethod)PL.genMethod=d.genMethod;
+      }
+      if(cb)cb();
+    }).catch(function(){if(cb)cb();});
+  } catch(e){if(cb)cb();}
+}
+
+// ── EXPOSE GLOBALS ─────────────────────────────────────
+window._PLAN = {
+  PL:PL, planUid:planUid,
+  t2m:t2m, m2t:m2t, m2px:m2px, snapM:snapM, fmtH:fmtH,
+  P_START:P_START,P_END:P_END,P_ROW:P_ROW,P_HEAD:P_HEAD,
+  PLAN_DAYS:PLAN_DAYS,PLAN_DKEYS:PLAN_DKEYS,PLAN_DCOL:PLAN_DCOL,
+  PLAN_DEFAULT_CYCLES:PLAN_DEFAULT_CYCLES,
+  teacherAllows:teacherAllows,
+  buildSchedule:buildSchedule,buildScheduleMaxCoverage:buildScheduleMaxCoverage,
+  diagnoseUnplaced:diagnoseUnplaced,computeScore:computeScore,
+  findSwaps:findSwaps,computeStats:computeStats,
+  planSave:planSave,planLoad:planLoad,
+};
+
+})();
+</script>
+
+<!-- FIN PATCH CONSERVATOIRE PARTIE 1 -->
+<!-- ════════════════════════════════════════════════════════════════════
+     PATCH CONSERVATOIRE — PARTIE 2 / 2
+     Coller juste après la partie 1, avant </body>.
+     ════════════════════════════════════════════════════════════════════ -->
+
+<!-- ── PLANAPP DOM ── -->
+
+<div id="planApp">
+  <!-- Topbar -->
+  <div class="ptb">
+    <button class="ptb-back" onclick="window._PLAN.closePlanApp()">← Maestro</button>
+    <span class="ptb-title">📅 Planning</span>
+    <div style="display:flex;gap:5px;align-items:center;">
+      <button class="ptb-btn ptb-btn-s" onclick="window._PLAN.openPlanModal('teacher')" title="Profil">⚙</button>
+      <button class="ptb-btn ptb-btn-s" onclick="window._PLAN.openPlanModal('settings')" title="Paramètres">⊞</button>
+      <button id="planUndoBtn" class="ptb-btn ptb-btn-s" onclick="window._PLAN.planUndo()" title="Annuler">↩</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+
+  <div class="plan-body" id="planBody">
+    <div class="plan-tabs">
+      <button class="plan-tab on" data-tab="students" onclick="window._PLAN.setTab('students')">👥 Élèves</button>
+      <button class="plan-tab" data-tab="schedule" onclick="window._PLAN.setTab('schedule')">📅 Planning</button>
+      <button class="plan-tab" data-tab="dashboard" onclick="window._PLAN.setTab('dashboard')">📊 Stats</button>
+    </div>
+    <!-- Tab content injected by JS -->
+    <div id="planTabContent"></div>
+  </div>
+
+  <!-- Toast -->
+
+  <div id="planToast"></div>
+
+  <!-- Modal container (position:absolute relative to #planApp) -->
+
+  <div id="planModalOverlay" class="pmo" onclick="window._PLAN.closePlanModal(event)">
+    <div class="pmb" id="planModalBox" onclick="event.stopPropagation()">
+      <div id="planModalContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Drag ghost (fixed, always on top) -->
+
+<div id="planGhost"></div>
+
+<script>
+(function(){
+'use strict';
+var G = window._PLAN; // shorthand
+var PL,planUid,t2m,m2t,m2px,snapM,fmtH,P_START,P_END,P_ROW,P_HEAD,
+    PLAN_DAYS,PLAN_DKEYS,PLAN_DCOL,PLAN_DEFAULT_CYCLES,
+    teacherAllows,buildSchedule,buildScheduleMaxCoverage,
+    diagnoseUnplaced,computeScore,findSwaps,computeStats,planSave,planLoad;
+
+// Wait for part1 to be ready
+function init(){
+  G=window._PLAN;
+  PL=G.PL; planUid=G.planUid; t2m=G.t2m; m2t=G.m2t; m2px=G.m2px;
+  snapM=G.snapM; fmtH=G.fmtH;
+  P_START=G.P_START; P_END=G.P_END; P_ROW=G.P_ROW; P_HEAD=G.P_HEAD;
+  PLAN_DAYS=G.PLAN_DAYS; PLAN_DKEYS=G.PLAN_DKEYS; PLAN_DCOL=G.PLAN_DCOL;
+  PLAN_DEFAULT_CYCLES=G.PLAN_DEFAULT_CYCLES;
+  teacherAllows=G.teacherAllows;
+  buildSchedule=G.buildSchedule; buildScheduleMaxCoverage=G.buildScheduleMaxCoverage;
+  diagnoseUnplaced=G.diagnoseUnplaced; computeScore=G.computeScore;
+  findSwaps=G.findSwaps; computeStats=G.computeStats;
+  planSave=G.planSave; planLoad=G.planLoad;
+}
+
+// ── TOAST ──────────────────────────────────────────────
+function planFlash(msg){
+  var t=document.getElementById('planToast');
+  t.textContent=msg; t.classList.add('on');
+  setTimeout(function(){t.classList.remove('on');},3000);
+}
+
+// ── OPEN / CLOSE ───────────────────────────────────────
+function openPlanApp(){
+  init();
+  document.getElementById('planApp').classList.add('on');
+  // hide main Maestro app
+  var aM=document.getElementById('aM');
+  if(aM) aM.style.display='none';
+  // load from Firebase then render
+  planLoad(function(){
+    renderTab();
+  });
+}
+function closePlanApp(){
+  document.getElementById('planApp').classList.remove('on');
+  var aM=document.getElementById('aM');
+  if(aM) aM.style.display='';
+  closePlanModal();
+}
+G.openPlanApp  = openPlanApp;
+G.closePlanApp = closePlanApp;
+
+// ── TABS ───────────────────────────────────────────────
+function setTab(name){
+  PL.activeTab=name;
+  document.querySelectorAll('#planApp .plan-tab').forEach(function(b){
+    b.classList.toggle('on', b.dataset.tab===name);
+  });
+  renderTab();
+}
+G.setTab=setTab;
+
+function renderTab(){
+  var el=document.getElementById('planTabContent');
+  if(PL.activeTab==='students')   renderStudentsTab(el);
+  else if(PL.activeTab==='schedule') renderScheduleTab(el);
+  else if(PL.activeTab==='dashboard')renderDashboardTab(el);
+}
+
+// ── UNDO / REDO ────────────────────────────────────────
+function pushUndo(s){
+  PL.undoStack.push(JSON.stringify(s));
+  if(PL.undoStack.length>20)PL.undoStack.shift();
+  PL.redoStack=[];
+}
+function planUndo(){
+  if(!PL.undoStack.length)return;
+  PL.redoStack.push(JSON.stringify(PL.sch));
+  PL.sch=JSON.parse(PL.undoStack.pop());
+  renderTab(); planFlash('Annulation');
+}
+G.planUndo=planUndo;
+
+// ── STUDENTS TAB ───────────────────────────────────────
+function renderStudentsTab(el){
+  var h='<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">';
+  h+='<div><div style="font-family:Lora,serif;font-size:1.3rem;font-weight:600;color:#1e1a2e;">Mes élèves</div>';
+  h+='<div style="font-size:.72rem;color:#9CA3AF;margin-top:2px;">'+PL.students.length+' élève'+(PL.students.length!==1?'s':'')+'</div></div>';
+  h+='<button onclick="window._PLAN.openPlanModal(\'addSt\')" style="background:#5b4fcf;border:none;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.78rem;font-weight:800;font-family:Nunito,sans-serif;">+ Ajouter</button>';
+  h+='</div>';
+
+  // cycle legend
+  h+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;">';
+  PL.cycles.forEach(function(c){
+    h+='<div style="border:1px solid '+c.color+'40;border-radius:4px;padding:2px 8px;display:flex;align-items:center;gap:4px;">';
+    h+='<div style="width:7px;height:7px;border-radius:50%;background:'+c.color+'"></div>';
+    h+='<span style="font-size:.68rem;font-weight:700;color:'+c.color+'">'+esc(c.label)+' '+c.duration+'min</span></div>';
+  });
+  h+='</div>';
+
+  // teacher warning
+  if(!PL.teacher.workSlots.length){
+    h+='<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">';
+    h+='<span style="color:#92400E;font-size:.8rem;flex:1;">Aucun horaire configuré pour « '+esc(PL.teacher.name)+' ».</span>';
+    h+='<button onclick="window._PLAN.openPlanModal(\'teacher\')" style="background:#FEF3C7;border:1.5px solid #FDE68A;color:#92400E;border-radius:7px;padding:3px 10px;cursor:pointer;font-size:.72rem;font-weight:700;font-family:Nunito,sans-serif;">Configurer</button></div>';
+  }
+
+  if(!PL.students.length){
+    h+='<div style="border:1px dashed #EAECF0;border-radius:12px;padding:3rem 2rem;text-align:center;">';
+    h+='<p style="color:#9CA3AF;font-size:.85rem;margin-bottom:14px;">Aucun élève. Ajoutez-en ou chargez la démo.</p>';
+    h+='<button onclick="window._PLAN.loadDemo()" style="background:#F5F3FF;border:1.5px solid #DDD6FE;color:#7C3AED;border-radius:9px;padding:7px 18px;cursor:pointer;font-size:.82rem;font-weight:700;font-family:Nunito,sans-serif;">Charger la démo</button>';
+    h+='</div>';
+  } else {
+    PL.students.forEach(function(st){
+      var cy=PL.cycles.find(function(c){return st.cycle&&c.id===st.cycle.id;});
+      var inSch=PL.sch&&PLAN_DKEYS.some(function(d){return (PL.sch[d]||[]).some(function(sl){return sl.studentId===st.id;});});
+      var isLk=PL.locked.some(function(l){return l.studentId===st.id;});
+      var ini=st.name.split(' ').map(function(n){return n[0];}).slice(0,2).join('');
+      var prio=st.priority||3;
+      h+='<div class="pcard" style="margin-bottom:6px;">';
+      h+='<div style="display:flex;align-items:center;gap:10px;">';
+      h+='<div style="position:relative;flex-shrink:0;">';
+      h+='<div style="width:40px;height:40px;border-radius:11px;background:'+(cy?cy.light:'#F3F4F6')+';border:2.5px solid '+(cy?cy.color:'#E5E7EB')+';display:flex;align-items:center;justify-content:center;font-size:.76rem;font-weight:900;color:'+(cy?cy.color:'#111')+';">'+ini+'</div>';
+      if(prio>=4) h+='<div style="position:absolute;top:-4px;right:-4px;background:#F59E0B;border-radius:50%;width:13px;height:13px;display:flex;align-items:center;justify-content:center;font-size:.42rem;font-weight:900;color:#fff;">'+prio+'</div>';
+      h+='</div>';
+      h+='<div style="flex:1;min-width:0;">';
+      h+='<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:2px;">';
+      h+='<span style="font-weight:800;font-size:.88rem;color:#1e1a2e;">'+esc(st.name)+'</span>';
+      if(inSch) h+='<span class="pbadge pbadge-green" style="font-size:.6rem;">Planifié</span>';
+      else if(PL.sch) h+='<span class="pbadge pbadge-red" style="font-size:.6rem;">Non placé</span>';
+      if(isLk) h+='<span style="font-size:.65rem;color:#E17055;">🔒</span>';
+      h+='</div>';
+      h+='<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">';
+      if(st.instrument) h+='<span style="font-size:.7rem;color:#9CA3AF;">'+esc(st.instrument)+'</span>';
+      if(cy) h+='<span style="font-size:.7rem;font-weight:700;color:'+cy.color+';background:'+cy.light+';border-radius:5px;padding:1px 6px;">'+esc(cy.label)+' '+cy.duration+'min</span>';
+      h+='<span style="font-size:.68rem;color:#9CA3AF;">'+st.availabilities.length+' dispo'+(st.availabilities.length!==1?'s':'')+'</span>';
+      h+='</div></div>';
+      h+='<div style="display:flex;gap:4px;flex-shrink:0;">';
+      h+='<button onclick="window._PLAN.showCard(\''+st.id+'\')" title="Fiche" style="background:#F8F9FB;border:1.5px solid #EAECF0;color:#9CA3AF;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;">👁</button>';
+      h+='<button onclick="window._PLAN.openPlanModal(\'editSt\',\''+st.id+'\')" title="Éditer" style="background:#F8F9FB;border:1.5px solid #EAECF0;color:#9CA3AF;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;">✏</button>';
+      h+='<button onclick="window._PLAN.delStudent(\''+st.id+'\')" title="Supprimer" style="background:#FFF5F5;border:1.5px solid #FED7D7;color:#E53E3E;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.82rem;display:flex;align-items:center;justify-content:center;">×</button>';
+      h+='</div></div></div>';
+    });
+
+    // Generate buttons
+    h+='<div style="margin-top:18px;padding-top:14px;border-top:1.5px solid #EAECF0;">';
+    h+='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">';
+    h+='<button onclick="window._PLAN.loadDemo()" style="background:#F8F9FB;border:1.5px solid #EAECF0;color:#9CA3AF;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:.75rem;font-weight:700;font-family:Nunito,sans-serif;">Démo</button>';
+    h+='<button onclick="window._PLAN.generate(\''+PL.genMode+'\',0,\'greedy\')" style="background:#1e1a2e;border:none;color:#fff;border-radius:8px;padding:8px 20px;cursor:pointer;font-size:.85rem;font-weight:800;font-family:Nunito,sans-serif;">Générer</button>';
+    h+='<button onclick="window._PLAN.generate(\''+PL.genMode+'\',0,\'coverage\')" style="background:transparent;border:1.5px solid #EAECF0;color:#9CA3AF;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem;font-weight:700;font-family:Nunito,sans-serif;">Max élèves</button>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap;">';
+    h+='<span style="font-size:.7rem;color:#9CA3AF;">Mode :</span>';
+    [{id:'wishes',label:'Souhaits',icon:'★'},{id:'compact',label:'Compact',icon:'▣'}].forEach(function(m){
+      var on=PL.genMode===m.id;
+      h+='<button onclick="window._PLAN.setGenMode(\''+m.id+'\')" style="background:'+(on?'#5b4fcf22':'#F8F9FB')+';border:1.5px solid '+(on?'#5b4fcf':'#EAECF0')+';border-radius:7px;padding:3px 9px;cursor:pointer;font-family:Nunito,sans-serif;">';
+      h+='<span style="font-size:.7rem;font-weight:'+(on?800:500)+';color:'+(on?'#5b4fcf':'#9CA3AF')+';">'+m.icon+' '+m.label+'</span></button>';
+    });
+    h+='</div></div>';
+  }
+  el.innerHTML=h;
+}
+
+// ── SCHEDULE TAB ───────────────────────────────────────
+function renderScheduleTab(el){
+  if(!PL.sch){
+    el.innerHTML='<div style="text-align:center;padding:4rem 2rem;"><p style="color:#9CA3AF;margin-bottom:14px;">Générez d\'abord l\'emploi du temps.</p><button onclick="window._PLAN.setTab(\'students\')" style="background:#1e1a2e;border:none;color:#fff;border-radius:10px;padding:8px 20px;cursor:pointer;font-size:.82rem;font-weight:800;font-family:Nunito,sans-serif;">Aller aux élèves</button></div>';
+    return;
+  }
+  var placed=PLAN_DKEYS.reduce(function(a,d){return a+(PL.sch[d]?PL.sch[d].length:0);},0);
+  var unplaced=PL.students.filter(function(s){return !PLAN_DKEYS.some(function(d){return (PL.sch[d]||[]).some(function(sl){return sl.studentId===s.id;});});});
+
+  var h='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">';
+  h+='<span class="pbadge pbadge-green"><span style="font-size:1rem;font-weight:900;">'+placed+'</span><span style="font-size:.68rem;">placé'+(placed>1?'s':'')+'</span></span>';
+  if(unplaced.length){
+    h+='<button onclick="window._PLAN.openPlanModal(\'unplaced\')" class="pbadge pbadge-red" style="cursor:pointer;border:none;font-family:Nunito,sans-serif;">';
+    h+='<span style="font-size:1rem;font-weight:900;">'+unplaced.length+'</span><span style="font-size:.68rem;">non placé'+(unplaced.length>1?'s':'')+' – pourquoi ?</span></button>';
+  }
+  h+='<span class="pbadge pbadge-ora"><span style="font-size:1rem;font-weight:900;">'+PL.locked.length+'</span><span style="font-size:.68rem;">verrou'+(PL.locked.length>1?'s':'')+'</span></span>';
+  h+='<div style="flex:1;"></div>';
+  h+='<button onclick="window._PLAN.openPlanModal(\'score\')" style="background:transparent;border:1.5px solid #EAECF0;color:#9CA3AF;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:.72rem;font-weight:700;font-family:Nunito,sans-serif;">Score</button>';
+  h+='<button onclick="window._PLAN.openPlanModal(\'weights\')" style="background:transparent;border:1.5px solid #EAECF0;color:#9CA3AF;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:.72rem;font-weight:700;font-family:Nunito,sans-serif;">Poids</button>';
+  h+='<button onclick="window._PLAN.regenerate()" style="background:#1e1a2e;border:none;color:#fff;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:.72rem;font-weight:800;font-family:Nunito,sans-serif;">Nouvelle dispo</button>';
+  h+='</div>';
+
+  // View toggle
+  h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">';
+  h+='<div style="display:flex;background:#EAECF0;border-radius:8px;padding:2px;gap:1px;">';
+  [{id:'week',label:'Semaine'},{id:'day',label:'Jour'}].forEach(function(m){
+    var on=PL.schedView===m.id;
+    h+='<button onclick="window._PLAN.setSchedView(\''+m.id+'\')" style="background:'+(on?'#fff':'transparent')+';border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.72rem;font-weight:'+(on?700:500)+';color:'+(on?'#1e1a2e':'#9CA3AF')+';font-family:Nunito,sans-serif;box-shadow:'+(on?'0 1px 4px rgba(0,0,0,.08)':'none')+';">'+m.label+'</button>';
+  });
+  h+='</div>';
+  if(PL.schedView==='day'){
+    h+='<div class="pday-strip">';
+    PLAN_DKEYS.forEach(function(dk,ci){
+      var cnt=(PL.sch[dk]||[]).length;
+      var on=PL.schedDay===ci;
+      h+='<button onclick="window._PLAN.setSchedDay('+ci+')" class="pday-btn'+(on?' on':'')" style="'+(on?'background:'+PLAN_DCOL[ci]+';':'')+'">';
+      h+='<span>'+PLAN_DAYS[ci].slice(0,3)+'</span>';
+      if(cnt>0) h+='<span style="margin-left:4px;font-size:.6rem;font-weight:700;color:'+(on?'rgba(255,255,255,.8)':PLAN_DCOL[ci])+';">'+cnt+'</span>';
+      h+='</button>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+
+  h+='<div class="pgrid-wrap" id="planGrid"></div>';
+  el.innerHTML=h;
+  buildGrid();
+}
+
+// ── BUILD GRID ─────────────────────────────────────────
+var dragState=null;
+
+function buildGrid(){
+  var wrap=document.getElementById('planGrid');
+  if(!wrap)return;
+  var totalRows=(P_END-P_START)*2;
+  var visDays = PL.schedView==='week'? PLAN_DKEYS : [PLAN_DKEYS[PL.schedDay]];
+  var visIdx  = PL.schedView==='week'? PLAN_DKEYS.map(function(_,i){return i;}) : [PL.schedDay];
+
+  var h='<div class="pgrid">';
+  // Time column
+  h+='<div class="pgrid-time"><div class="pgrid-head-cell"></div>';
+  for(var ri=0;ri<totalRows;ri++){
+    h+='<div class="pgrid-row-lbl" style="height:'+P_ROW+'px;">';
+    if(ri%2===0) h+='<span>'+( P_START+ri/2)+'h</span>';
+    h+='</div>';
+  }
+  h+='</div>';
+
+  // Day columns
+  h+='<div class="pgrid-cols">';
+  visDays.forEach(function(dk,vci){
+    var ci=visIdx[vci];
+    var daySlots=PL.sch[dk]||[];
+    var works=(PL.teacher.workSlots||[]).filter(function(w){return w.day===dk;});
+    var bks=(PL.teacher.breaks||[]).filter(function(b){return b.day===dk;});
+
+    h+='<div class="pgrid-col" data-dk="'+dk+'" data-vci="'+vci+'">';
+    // Head
+    h+='<div class="pgrid-col-head"><span class="pdlabel" style="color:'+PLAN_DCOL[ci]+';">';
+    h+=(PL.schedView==='day'?PLAN_DAYS[ci]:PLAN_DAYS[ci].slice(0,3));
+    h+='</span><div style="width:4px;height:4px;border-radius:50%;background:'+PLAN_DCOL[ci]+';opacity:.35;margin-top:2px;"></div></div>';
+
+    // Body
+    h+='<div class="pgrid-col-body" style="height:'+(totalRows*P_ROW)+'px;position:relative;">';
+    // grid lines
+    for(var rr=0;rr<totalRows;rr++){
+      h+='<div class="pgrid-hline'+(rr%2===1?' major':'')+'" style="top:'+(rr*P_ROW)+'px;"></div>';
+    }
+    // work slots
+    works.forEach(function(w){
+      var top=m2px(t2m(w.start)),hh=((t2m(w.end)-t2m(w.start))/30)*P_ROW;
+      h+='<div style="position:absolute;top:'+top+'px;left:0;right:0;height:'+hh+'px;background:rgba(45,189,143,.05);border-left:3px solid rgba(45,189,143,.2);pointer-events:none;z-index:1;"></div>';
+    });
+    // breaks
+    bks.forEach(function(b){
+      var top=m2px(t2m(b.start)),hh=((t2m(b.end)-t2m(b.start))/30)*P_ROW;
+      h+='<div style="position:absolute;top:'+top+'px;left:0;right:0;height:'+hh+'px;z-index:2;pointer-events:none;background:repeating-linear-gradient(135deg,rgba(232,67,147,.05),rgba(232,67,147,.05) 4px,transparent 4px,transparent 10px);border-left:3px solid rgba(232,67,147,.3);">';
+      h+='<span style="font-size:.46rem;color:rgba(232,67,147,.5);padding:2px 4px;display:block;font-weight:800;text-transform:uppercase;">Pause</span></div>';
+    });
+    // availability hints (faint)
+    PL.students.forEach(function(st,si){
+      st.availabilities.filter(function(a){return a.day===dk;}).forEach(function(a,ai){
+        var top=m2px(t2m(a.start)),hh=((t2m(a.end)-t2m(a.start))/30)*P_ROW;
+        var col=a.type==='preferred'?'rgba(225,112,85,.22)':'rgba(9,132,227,.15)';
+        h+='<div class="phint" style="top:'+top+'px;height:'+hh+'px;border-color:'+col+';background:'+col.replace(/[\d.]+\)$/,'0.06)')+';" data-si="'+si+'" data-ai="'+ai+'"></div>';
+      });
+    });
+    // placeholder for inline ghost (filled by drag)
+    h+='<div class="pghost-slot" id="pghost_'+dk+'" style="display:none;"></div>';
+    // slots
+    daySlots.forEach(function(slot,sli){
+      var st=PL.students.find(function(s){return s.id===slot.studentId;});
+      var cy=st&&PL.cycles.find(function(c){return st.cycle&&c.id===st.cycle.id;});
+      if(!st||!cy)return;
+      var isLk=PL.locked.some(function(l){return l.studentId===slot.studentId&&l.day===dk;});
+      var top=m2px(slot.startMin),hh=(cy.duration/30)*P_ROW;
+      var shortName=st.name.split(' ')[0];
+      h+='<div class="pslot'+(isLk?' locked':'')+'" id="pslot_'+dk+'_'+sli+'" ';
+      h+='data-sid="'+slot.studentId+'" data-dk="'+dk+'" data-sm="'+slot.startMin+'"';
+      h+='style="top:'+(top+2)+'px;height:'+(hh-4)+'px;background:'+cy.light+';border-color:'+cy.color+(isLk?'':'99')+';z-index:5;">';
+      h+='<div class="pslot-bar" style="background:'+cy.color+';"></div>';
+      h+='<div style="padding:3px 6px 2px 10px;height:100%;display:flex;flex-direction:column;justify-content:center;overflow:hidden;">';
+      h+='<div class="pslot-name" style="color:'+cy.color+';">'+esc(shortName)+'</div>';
+      if(hh>46) h+='<div class="pslot-time" style="color:'+cy.color+';">'+m2t(slot.startMin)+'</div>';
+      h+='</div>';
+      h+='<button class="pslot-lock" data-sid="'+slot.studentId+'" data-dk="'+dk+'" onclick="window._PLAN.toggleLock(this,event)" style="background:'+(isLk?cy.color:'rgba(0,0,0,.06)')+';color:'+(isLk?'#fff':'#aaa')+';">'+(isLk?'🔒':'🔓')+'</button>';
+      h+='</div>';
+    });
+    h+='</div></div>'; // col-body, col
+  });
+  h+='</div></div>'; // pgrid-cols, pgrid
+  wrap.innerHTML=h;
+
+  // attach drag handlers
+  wrap.querySelectorAll('.pslot:not(.locked)').forEach(function(el){
+    el.addEventListener('mousedown', startDrag);
+    el.addEventListener('touchstart', startDrag, {passive:false});
+  });
+  wrap.querySelectorAll('.pslot').forEach(function(el){
+    el.addEventListener('click', function(e){
+      if(!dragState) showCard(el.dataset.sid);
+    });
+  });
+}
+
+// ── DRAG & DROP ────────────────────────────────────────
+function canDrop(dk, sm, sid){
+  var s=PL.sch, sts=PL.students, t=PL.teacher;
+  var st=sts.find(function(x){return x.id===sid;});if(!st)return false;
+  var dur=st.cycle.duration,em=sm+dur;
+  if(sm<P_START*60||em>P_END*60)return false;
+  if(!st.availabilities.some(function(a){return a.day===dk&&t2m(a.start)<=sm&&em<=t2m(a.end);}))return false;
+  if(!teacherAllows(dk,sm,em,t))return false;
+  return !(s[dk]||[]).filter(function(x){return x.studentId!==sid;}).some(function(x){return !(em<=x.startMin||sm>=x.endMin);});
+}
+
+function getGridPos(cx,cy2){
+  var wrap=document.getElementById('planGrid');if(!wrap)return null;
+  var r=wrap.getBoundingClientRect();
+  var relX=cx-r.left,relY=cy2-r.top-P_HEAD-40; // 40 = sticky head offset
+  var cols=wrap.querySelectorAll('.pgrid-col');
+  var acc=0,vci=-1;
+  for(var i=0;i<cols.length;i++){var cw=cols[i].getBoundingClientRect().width;if(relX>=acc&&relX<acc+cw){vci=i;break;}acc+=cw;}
+  if(vci===-1)return null;
+  var visDays=PL.schedView==='week'?PLAN_DKEYS:[PLAN_DKEYS[PL.schedDay]];
+  var grabMin=dragState?dragState.grabOffsetMin:0;
+  var rawMin=(relY/P_ROW)*30+P_START*60-grabMin;
+  return {dk:visDays[vci],sm:snapM(rawMin)};
+}
+
+function startDrag(e){
+  if(e.button!==undefined&&e.button!==0&&!e.touches)return;
+  e.preventDefault();e.stopPropagation();
+  var el=e.currentTarget;
+  var sid=el.dataset.sid;
+  var st=PL.students.find(function(s){return s.id===sid;});
+  var cy=st&&PL.cycles.find(function(c){return st.cycle&&c.id===st.cycle.id;});
+  if(!st||!cy)return;
+  var rect=el.getBoundingClientRect();
+  var cy2=(e.clientY||(e.touches&&e.touches[0].clientY)||0);
+  var grabOffsetPx=Math.max(0,cy2-rect.top);
+  dragState={sid:sid,dur:cy.duration,color:cy.color,light:cy.light,name:st.name,grabOffsetMin:Math.round(grabOffsetPx/P_ROW*30)};
+  el.style.opacity='.2';
+  updateGhost(e.clientX||(e.touches&&e.touches[0].clientX)||0, cy2, null, false);
+  // show avail hints prominently
+  showAvailHints(sid);
+}
+
+function showAvailHints(sid){
+  // rebuild hints for only this student brightly
+  var wrap=document.getElementById('planGrid');if(!wrap)return;
+  if(!dragState)return;
+  var st=PL.students.find(function(s){return s.id===sid;});if(!st)return;
+  var cy=PL.cycles.find(function(c){return st.cycle&&c.id===st.cycle.id;});if(!cy)return;
+  // faint all existing hints
+  wrap.querySelectorAll('.phint').forEach(function(h){h.style.opacity='0.2';});
+  // draw bright hints per day
+  PLAN_DKEYS.forEach(function(dk){
+    var col=document.querySelector('[data-dk="'+dk+'"] .pgrid-col-body');if(!col)return;
+    st.availabilities.filter(function(a){return a.day===dk;}).forEach(function(a,ai){
+      var ws=t2m(a.start),we=t2m(a.end),dur=cy.duration;
+      var top=m2px(ws),hh=((we-ws)/30)*P_ROW;
+      var isPref=a.type==='preferred';
+      var hint=document.createElement('div');
+      hint.className='phint pav-hint-bright';
+      hint.style.cssText='top:'+top+'px;height:'+hh+'px;border-color:'+cy.color+(isPref?'99':'55')+';background:'+cy.color+(isPref?'22':'12')+';border-right:1px solid '+cy.color+'33;z-index:3;';
+      col.appendChild(hint);
+      // droppable mini-slots
+      for(var tt=ws;tt+dur<=we;tt+=30){
+        var valid=canDrop(dk,tt,sid);
+        if(!valid)continue;
+        var st2=m2px(tt),sh=(dur/30)*P_ROW;
+        var ds=document.createElement('div');
+        ds.className='pghost-slot pav-hint-bright';
+        ds.style.cssText='top:'+(st2+1)+'px;height:'+(sh-2)+'px;left:4px;right:4px;z-index:4;background:'+cy.color+(isPref?'30':'20')+';border-color:'+cy.color+(isPref?'88':'55')+';border-radius:6px;border-width:1.5px;display:flex;align-items:center;justify-content:center;';
+        ds.innerHTML='<span style="font-size:.52rem;font-weight:800;color:'+cy.color+';opacity:.8;">'+m2t(tt)+'</span>';
+        col.appendChild(ds);
+      }
+    });
+  });
+}
+
+function clearAvailHints(){
+  document.querySelectorAll('.pav-hint-bright').forEach(function(el){el.parentNode&&el.parentNode.removeChild(el);});
+  document.querySelectorAll('.phint').forEach(function(h){h.style.opacity='';});
+}
+
+function updateGhost(cx,cy2,pos,valid){
+  var g=document.getElementById('planGhost');
+  g.textContent=(dragState?dragState.name.split(' ')[0]:'')+(pos?' '+m2t(pos.sm):'');
+  g.style.left=(cx+12)+'px'; g.style.top=(cy2-8)+'px';
+  g.style.background=valid?'#111':'#EF4444';
+  g.classList.add('on');
+  // inline grid ghost
+  PLAN_DKEYS.forEach(function(dk){
+    var ig=document.getElementById('pghost_'+dk);
+    if(ig)ig.style.display='none';
+  });
+  if(pos&&dragState){
+    var ig=document.getElementById('pghost_'+pos.dk);
+    if(ig){
+      var hh=(dragState.dur/30)*P_ROW;
+      var top=m2px(pos.sm);
+      ig.style.cssText='display:flex;top:'+(top+2)+'px;height:'+(hh-4)+'px;left:3px;right:3px;background:'+(valid?dragState.color+'33':'rgba(239,68,68,.15)')+';border-color:'+(valid?dragState.color:'#EF4444')+';z-index:8;align-items:center;justify-content:center;border-width:2px;';
+      ig.innerHTML='<div style="text-align:center;"><div style="font-size:.62rem;font-weight:900;color:'+(valid?dragState.color:'#EF4444')+';">'+esc(dragState.name.split(' ')[0])+'</div><div style="font-size:.5rem;color:'+(valid?dragState.color:'#EF4444')+';opacity:.85;font-family:monospace;">'+m2t(pos.sm)+'–'+m2t(pos.sm+dragState.dur)+'</div></div>';
+    }
+  }
+}
+
+function endDrag(cx,cy2){
+  if(!dragState)return;
+  var pos=getGridPos(cx,cy2);
+  var sid=dragState.sid;
+  if(pos&&canDrop(pos.dk,pos.sm,sid)){
+    var st=PL.students.find(function(s){return s.id===sid;});
+    var av=st&&st.availabilities.find(function(a){return a.day===pos.dk&&t2m(a.start)<=pos.sm&&pos.sm+dragState.dur<=t2m(a.end);});
+    moveSlot(sid,pos.dk,pos.sm,(av&&av.type)||'possible');
+  }
+  // cleanup
+  document.querySelectorAll('.pslot[data-sid="'+sid+'"]').forEach(function(el){el.style.opacity='';});
+  document.getElementById('planGhost').classList.remove('on');
+  PLAN_DKEYS.forEach(function(dk){var ig=document.getElementById('pghost_'+dk);if(ig)ig.style.display='none';});
+  clearAvailHints();
+  dragState=null;
+}
+
+window.addEventListener('mousemove',function(e){
+  if(!dragState)return;
+  var pos=getGridPos(e.clientX,e.clientY);
+  updateGhost(e.clientX,e.clientY,pos,pos?canDrop(pos.dk,pos.sm,dragState.sid):false);
+});
+window.addEventListener('mouseup',function(e){if(dragState)endDrag(e.clientX,e.clientY);});
+window.addEventListener('touchmove',function(e){
+  if(!dragState||!e.touches[0])return;
+  e.preventDefault();
+  var t=e.touches[0];
+  var pos=getGridPos(t.clientX,t.clientY);
+  updateGhost(t.clientX,t.clientY,pos,pos?canDrop(pos.dk,pos.sm,dragState.sid):false);
+},{passive:false});
+window.addEventListener('touchend',function(e){
+  if(!dragState)return;
+  var t=e.changedTouches[0];
+  if(t)endDrag(t.clientX,t.clientY);
+  else {document.getElementById('planGhost').classList.remove('on');clearAvailHints();dragState=null;}
+});
+
+function moveSlot(sid,day,sm,avType){
+  if(!PL.sch)return;
+  pushUndo(JSON.parse(JSON.stringify(PL.sch)));
+  var st=PL.students.find(function(s){return s.id===sid;});
+  PLAN_DKEYS.forEach(function(d){PL.sch[d]=(PL.sch[d]||[]).filter(function(s){return s.studentId!==sid;});});
+  PL.sch[day].push({studentId:sid,startMin:sm,endMin:sm+((st&&st.cycle&&st.cycle.duration)||30),locked:false,availType:avType});
+  PL.locked=PL.locked.map(function(l){return l.studentId===sid?Object.assign({},l,{day:day,startMin:sm}):l;});
+  planSave();
+  buildGrid();
+}
+
+function toggleLock(btn,e){
+  e.stopPropagation();e.preventDefault();
+  var sid=btn.dataset.sid,dk=btn.dataset.dk;
+  var isLk=PL.locked.some(function(l){return l.studentId===sid&&l.day===dk;});
+  if(isLk) PL.locked=PL.locked.filter(function(l){return !(l.studentId===sid&&l.day===dk);});
+  else {
+    var slot=(PL.sch[dk]||[]).find(function(s){return s.studentId===sid;});
+    if(slot) PL.locked.push({studentId:sid,day:dk,startMin:slot.startMin,availType:slot.availType||'preferred'});
+  }
+  planSave();buildGrid();
+}
+G.toggleLock=toggleLock;
+
+// ── GENERATE ───────────────────────────────────────────
+function generate(mode,seed,method){
+  mode=mode||PL.genMode; seed=seed||0; method=method||PL.genMethod;
+  if(!PL.baseline&&PL.sch){
+    var snap={};PLAN_DKEYS.forEach(function(d){(PL.sch[d]||[]).forEach(function(sl){snap[sl.studentId]={day:d,startMin:sl.startMin};});});
+    PL.baseline=snap;
+  }
+  var s=method==='coverage'?buildScheduleMaxCoverage(PL.students,PL.locked,PL.teacher,3):buildSchedule(PL.students,PL.locked,PL.teacher,mode,seed);
+  PL.sch=s; PL.activeTab='schedule';
+  var up=PL.students.filter(function(st){return !PLAN_DKEYS.some(function(d){return (s[d]||[]).some(function(sl){return sl.studentId===st.id;});});});
+  PL.unplacedDiag=up.map(function(st){return {student:st,reason:diagnoseUnplaced(st,s,PL.teacher)};});
+  var p=PLAN_DKEYS.reduce(function(a,d){return a+(s[d]?s[d].length:0);},0);
+  planSave();
+  setTab('schedule');
+  planFlash(p+' élève'+(p>1?'s':'')+' placé'+(p>1?'s':'')+(PL.students.length-p>0?' — '+(PL.students.length-p)+' non placé'+(PL.students.length-p>1?'s':''):''));
+}
+function regenerate(){var s=Math.floor(Math.random()*99999)+1;PL.genSeed=s;generate(PL.genMode,s,PL.genMethod);}
+G.generate=generate;G.regenerate=regenerate;
+
+function setGenMode(m){PL.genMode=m;renderTab();}
+G.setGenMode=setGenMode;
+function setSchedView(v){PL.schedView=v;renderTab();}
+G.setSchedView=setSchedView;
+function setSchedDay(d){PL.schedDay=d;renderTab();}
+G.setSchedDay=setSchedDay;
+
+// ── DASHBOARD TAB ──────────────────────────────────────
+function renderDashboardTab(el){
+  if(!PL.sch){el.innerHTML='<p style="color:#9CA3AF;text-align:center;padding:3rem;">Générez d\'abord le planning.</p>';return;}
+  var sc=computeScore(PL.sch,PL.students,PL.teacher,PL.weights,PL.baseline);
+  var stats=computeStats(PL.sch,PL.students,PL.cycles,PL.teacher);
+  var placed=PLAN_DKEYS.reduce(function(a,d){return a+(PL.sch[d]?PL.sch[d].length:0);},0);
+
+  var h='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  [{label:'Élèves',value:placed+'/'+PL.students.length,color:'#00B894',bg:'#E8FAF6'},
+   {label:'Heures',value:fmtH(stats.totalCours),color:'#5b4fcf',bg:'#ede9ff'},
+   {label:'Score',value:sc.finalScore+'/100',color:sc.color,bg:sc.color+'15'},
+   {label:'Remplissage',value:stats.pct+'%',color:'#E17055',bg:'#FDF0EC'}].forEach(function(k){
+    h+='<div style="background:'+k.bg+';border-radius:12px;padding:12px;">';
+    h+='<div style="font-size:.6rem;font-weight:800;color:'+k.color+';letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;">'+k.label+'</div>';
+    h+='<div style="font-family:Lora,serif;font-size:1.6rem;font-weight:600;color:'+k.color+';">'+k.value+'</div></div>';
+  });
+  h+='</div>';
+
+  h+='<div class="pcard" style="margin-bottom:10px;">';
+  h+='<div style="font-size:.78rem;font-weight:800;color:#1e1a2e;margin-bottom:10px;">Charge par jour</div>';
+  var maxCours=Math.max.apply(null,stats.dayStats.map(function(d){return d.cours;})||[1]);
+  stats.dayStats.forEach(function(d){
+    h+='<div class="dash-day-bar">';
+    h+='<span style="font-size:.62rem;font-weight:700;color:#9CA3AF;width:28px;text-transform:uppercase;">'+d.label.slice(0,3)+'</span>';
+    h+='<div class="dash-bar-bg"><div class="dash-bar-fill" style="width:'+Math.min(d.cours/maxCours*90,100)+'%;"></div><span class="dash-bar-pct">'+d.pct+'%</span></div>';
+    h+='<span style="font-size:.62rem;color:#9CA3AF;width:30px;text-align:right;">'+fmtH(d.cours)+'</span></div>';
+  });
+  h+='</div>';
+
+  if(stats.cycleStats.length){
+    h+='<div class="pcard">';
+    h+='<div style="font-size:.78rem;font-weight:800;color:#1e1a2e;margin-bottom:10px;">Par cycle</div>';
+    stats.cycleStats.forEach(function(c){
+      var p=PL.students.length>0?Math.round(c.count/PL.students.length*100):0;
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+      h+='<div style="width:9px;height:9px;border-radius:50%;background:'+c.color+';flex-shrink:0;"></div>';
+      h+='<span style="font-size:.72rem;font-weight:700;color:#374151;flex:1;">'+esc(c.label)+'</span>';
+      h+='<div style="width:80px;background:#F3F4F6;border-radius:20px;height:7px;overflow:hidden;"><div style="width:'+p+'%;height:100%;background:'+c.color+';border-radius:20px;"></div></div>';
+      h+='<span style="font-size:.62rem;font-weight:700;color:'+c.color+';width:20px;text-align:right;">'+c.count+'</span></div>';
+    });
+    h+='</div>';
+  }
+  el.innerHTML=h;
+}
+
+// ── MODALS ─────────────────────────────────────────────
+function openPlanModal(name,arg){
+  PL.modal=name;
+  var ov=document.getElementById('planModalOverlay');
+  var box=document.getElementById('planModalContent');
+  ov.classList.add('on');
+  if(name==='addSt')    renderModalAddSt(box,null);
+  else if(name==='editSt') renderModalAddSt(box,arg);
+  else if(name==='card')   renderModalCard(box,arg);
+  else if(name==='teacher')renderModalTeacher(box);
+  else if(name==='settings')renderModalSettings(box);
+  else if(name==='score') renderModalScore(box);
+  else if(name==='weights')renderModalWeights(box);
+  else if(name==='unplaced')renderModalUnplaced(box);
+  else if(name==='swaps') renderModalSwaps(box);
+  else box.innerHTML='<p style="color:#9CA3AF;">'+name+'</p>';
+}
+function closePlanModal(e){
+  if(e&&e.target!==document.getElementById('planModalOverlay'))return;
+  document.getElementById('planModalOverlay').classList.remove('on');
+  PL.modal=null;
+}
+function closePlanModalForce(){
+  document.getElementById('planModalOverlay').classList.remove('on');
+  PL.modal=null;
+}
+G.openPlanModal=openPlanModal;
+G.closePlanModal=closePlanModal;
+
+// helpers
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function modalHeader(title){return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;"><h3 style="font-family:Lora,serif;font-size:1.15rem;font-weight:600;color:#1e1a2e;margin:0;">'+esc(title)+'</h3><button class="pmo-close" onclick="window._PLAN.closePlanModal({target:document.getElementById(\'planModalOverlay\')})">×</button></div>';}
+function lbl(text){return '<label class="plabel">'+text+'</label>';}
+function btn(text,cls,onclick){return '<button onclick="'+onclick+'" style="'+cls+'">'+text+'</button>';}
+
+// ── MODAL: ADD / EDIT STUDENT ──────────────────────────
+function renderModalAddSt(box,stId){
+  var st=stId?PL.students.find(function(s){return s.id===stId;}):null;
+  var h=modalHeader(st?'Modifier l\'élève':'Ajouter un élève');
+  h+='<div style="display:flex;flex-direction:column;gap:10px;">';
+  h+=lbl('Nom')+'<input class="pinput" id="stName" value="'+esc(st?st.name:'')+'" placeholder="Marie Dupont">';
+  h+=lbl('Instrument')+'<input class="pinput" id="stInstr" value="'+esc(st?st.instrument:'')+'" placeholder="Flûte">';
+  h+='<div>'+lbl('Cycle')+'<div style="display:flex;gap:5px;flex-wrap:wrap;" id="stCycles">';
+  var selCy=st?st.cycle.id:(PL.cycles[0]&&PL.cycles[0].id);
+  PL.cycles.forEach(function(c){
+    h+='<button class="cy-pill" data-cid="'+c.id+'" onclick="window._PLAN.selCy(this,\''+c.id+'\')" style="border-color:'+c.color+';background:'+(selCy===c.id?c.color:c.light)+';color:'+(selCy===c.id?'#fff':c.color)+';">'+esc(c.label)+' '+c.duration+'min</button>';
+  });
+  h+='</div></div>';
+  h+='<div>'+lbl('Priorité (1=faible, 5=haute)')+'<div style="display:flex;gap:4px;" id="stPrio">';
+  var prio=st?(st.priority||3):3;
+  for(var n=1;n<=5;n++) h+='<button class="prio-btn'+(prio>=n?' on':'')+'" data-n="'+n+'" onclick="window._PLAN.selPrio(this,'+n+')">'+n+'</button>';
+  h+='</div></div>';
+  h+='<div id="stAvBox"></div>';
+  h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">';
+  h+='<button onclick="window._PLAN.closePlanModal({target:document.getElementById(\'planModalOverlay\')})" style="background:#F3F4F6;border:none;color:#6B7280;border-radius:10px;padding:7px 14px;cursor:pointer;font-size:.8rem;font-weight:700;font-family:Nunito,sans-serif;">Annuler</button>';
+  h+='<button onclick="window._PLAN.saveSt(\''+esc(stId||'')+'\',false)" style="background:#5b4fcf;border:none;color:#fff;border-radius:10px;padding:7px 16px;cursor:pointer;font-size:.8rem;font-weight:700;font-family:Nunito,sans-serif;">Enregistrer</button>';
+  h+='</div></div>';
+  box.innerHTML=h;
+  // avail editor
+  renderAvailEditor(document.getElementById('stAvBox'), st?st.availabilities:[]);
+  // store temp avails in box element
+  box._avails = st?JSON.parse(JSON.stringify(st.availabilities)):[];
+  box._selCy  = selCy;
+  box._prio   = prio;
+}
+
+function selCy(btn,cid){
+  var box=document.getElementById('planModalContent');
+  box._selCy=cid;
+  box.querySelectorAll('.cy-pill').forEach(function(b){
+    var c=PL.cycles.find(function(cy){return cy.id===b.dataset.cid;});if(!c)return;
+    var on=b.dataset.cid===cid;
+    b.style.background=on?c.color:c.light;
+    b.style.color=on?'#fff':c.color;
+  });
+}
+G.selCy=selCy;
+
+function selPrio(btn,n){
+  var box=document.getElementById('planModalContent');
+  box._prio=n;
+  box.querySelectorAll('.prio-btn').forEach(function(b){
+    var bn=parseInt(b.dataset.n);
+    b.classList.toggle('on',bn<=n);
+  });
+}
+G.selPrio=selPrio;
+
+function renderAvailEditor(container, avails){
+  var days=PLAN_DAYS;
+  var h='<div style="background:#F8F9FB;border-radius:12px;padding:10px;border:1.5px solid #EAECF0;">';
+  h+='<div style="font-size:.62rem;font-weight:800;color:#5b4fcf;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Disponibilités</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:5px;align-items:end;margin-bottom:8px;">';
+  h+='<div>'+lbl('Jour')+'<select class="pinput" id="avDay">';
+  days.forEach(function(d,i){h+='<option value="'+PLAN_DKEYS[i]+'">'+d+'</option>';});
+  h+='</select></div>';
+  h+='<div>'+lbl('Début')+'<input type="time" class="pinput" id="avStart" value="09:00"></div>';
+  h+='<div>'+lbl('Fin')+'<input type="time" class="pinput" id="avEnd" value="10:00"></div>';
+  h+='<div>'+lbl('Type')+'<select class="pinput" id="avType"><option value="preferred">Souhaité</option><option value="possible">Possible</option></select></div>';
+  h+='<button onclick="window._PLAN.addAvail()" style="background:#5b4fcf;border:none;color:#fff;border-radius:9px;width:34px;height:34px;font-size:1.2rem;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-bottom:0;">+</button>';
+  h+='</div>';
+  h+='<div id="avList">';
+  avails.forEach(function(a,i){h+=availItem(a,i);});
+  h+='</div></div>';
+  container.innerHTML=h;
+  container._avails=avails;
+}
+
+function availItem(a,i){
+  var dl=PLAN_DAYS[PLAN_DKEYS.indexOf(a.day)]||a.day;
+  return '<div class="pav-item"><span class="pav-pref" style="background:'+(a.type==='preferred'?'#5b4fcf':'#9CA3AF')+';">'+(a.type==='preferred'?'PREF':'POSS')+'</span><strong>'+dl+'</strong>&nbsp;'+esc(a.start)+'-'+esc(a.end)+'<button class="pav-del" onclick="window._PLAN.delAvail('+i+')">×</button></div>';
+}
+
+function addAvail(){
+  var box=document.getElementById('planModalContent');
+  var day=document.getElementById('avDay').value;
+  var start=document.getElementById('avStart').value;
+  var end=document.getElementById('avEnd').value;
+  var type=document.getElementById('avType').value;
+  if(t2m(end)<=t2m(start)){planFlash('Heure de fin invalide');return;}
+  var av={id:planUid(),day:day,start:start,end:end,type:type};
+  box._avails.push(av);
+  var lst=document.getElementById('avList');
+  var div=document.createElement('div');
+  div.innerHTML=availItem(av,box._avails.length-1);
+  lst.appendChild(div.firstChild);
+}
+G.addAvail=addAvail;
+
+function delAvail(i){
+  var box=document.getElementById('planModalContent');
+  box._avails.splice(i,1);
+  var lst=document.getElementById('avList');
+  lst.innerHTML=box._avails.map(function(a,j){return availItem(a,j);}).join('');
+}
+G.delAvail=delAvail;
+
+function saveSt(stId){
+  var box=document.getElementById('planModalContent');
+  var name=document.getElementById('stName').value.trim();
+  if(!name){planFlash('Le nom est requis');return;}
+  var instr=document.getElementById('stInstr').value.trim();
+  var cy=PL.cycles.find(function(c){return c.id===box._selCy;})||PL.cycles[0];
+  var prio=box._prio||3;
+  var avails=box._avails||[];
+  if(stId){
+    PL.students=PL.students.map(function(s){return s.id===stId?Object.assign({},s,{name:name,instrument:instr,cycle:cy,availabilities:avails,priority:prio}):s;});
+  } else {
+    PL.students.push({id:planUid(),name:name,instrument:instr,cycle:cy,availabilities:avails,priority:prio});
+  }
+  planSave();
+  closePlanModalForce();
+  renderTab();
+  planFlash(stId?'Élève modifié':'Élève ajouté');
+}
+G.saveSt=saveSt;
+
+function delStudent(id){
+  if(!confirm('Supprimer cet élève ?'))return;
+  PL.students=PL.students.filter(function(s){return s.id!==id;});
+  PL.locked=PL.locked.filter(function(l){return l.studentId!==id;});
+  if(PL.sch) PLAN_DKEYS.forEach(function(d){PL.sch[d]=(PL.sch[d]||[]).filter(function(s){return s.studentId!==id;});});
+  planSave();renderTab();planFlash('Élève supprimé');
+}
+G.delStudent=delStudent;
+
+// ── MODAL: CARD ────────────────────────────────────────
+function showCard(sid){
+  PL.cardStudent=sid;
+  openPlanModal('card',sid);
+}
+G.showCard=showCard;
+
+function renderModalCard(box,sid){
+  var st=PL.students.find(function(s){return s.id===sid;});
+  if(!st){box.innerHTML='<p>Introuvable</p>';return;}
+  var cy=PL.cycles.find(function(c){return st.cycle&&c.id===st.cycle.id;});
+  var pDay=null,pSlot=null;
+  PLAN_DKEYS.forEach(function(d){var sl=(PL.sch&&PL.sch[d]||[]).find(function(s){return s.studentId===sid;});if(sl){pDay=d;pSlot=sl;}});
+  var ini=st.name.split(' ').map(function(n){return n[0];}).slice(0,2).join('');
+  var col=(cy&&cy.color)||'#111',lgt=(cy&&cy.light)||'#F3F4F6';
+  var h=modalHeader('Fiche élève');
+  h+='<div style="display:flex;align-items:center;gap:12px;background:'+lgt+';border-radius:12px;padding:12px;margin-bottom:12px;">';
+  h+='<div style="width:50px;height:50px;border-radius:12px;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;flex-shrink:0;">'+ini+'</div>';
+  h+='<div><div style="font-family:Lora,serif;font-size:1.1rem;font-weight:600;color:#1e1a2e;">'+esc(st.name)+'</div>';
+  h+='<div style="font-size:.75rem;color:#9CA3AF;margin-top:2px;">'+(st.instrument?esc(st.instrument)+' — ':'')+'<span style="color:'+col+';font-weight:700;">'+(cy?esc(cy.label):'')+' '+(st.cycle?st.cycle.duration:0)+'min</span></div></div></div>';
+  h+='<div style="background:#F8F9FB;border-radius:10px;padding:10px;border:1.5px solid #EAECF0;margin-bottom:10px;">';
+  h+='<div class="plabel">Créneau attribué</div>';
+  if(pSlot){
+    h+='<div style="display:flex;align-items:center;gap:8px;"><div style="width:4px;height:38px;background:'+col+';border-radius:2px;flex-shrink:0;"></div>';
+    h+='<div><div style="font-family:Lora,serif;font-size:1rem;font-weight:600;color:#1e1a2e;">'+PLAN_DAYS[PLAN_DKEYS.indexOf(pDay)]+'</div>';
+    h+='<div style="font-size:.78rem;color:#9CA3AF;">'+m2t(pSlot.startMin)+' – '+m2t(pSlot.endMin);
+    if(pSlot.availType==='preferred') h+='<span style="margin-left:6px;font-size:.65rem;color:#E17055;font-weight:700;">Souhaité</span>';
+    h+='</div></div></div>';
+  } else {
+    h+='<div style="color:#EF4444;font-size:.82rem;font-weight:700;">Non planifié</div>';
+  }
+  h+='</div>';
+  h+='<div class="plabel">Disponibilités</div>';
+  st.availabilities.forEach(function(a){
+    var dl=PLAN_DAYS[PLAN_DKEYS.indexOf(a.day)]||a.day;
+    h+='<div class="pav-item"><span class="pav-pref" style="background:'+(a.type==='preferred'?col:'#9CA3AF')+';">'+(a.type==='preferred'?'PREF':'POSS')+'</span><strong>'+dl+'</strong> '+esc(a.start)+'-'+esc(a.end)+'</div>';
+  });
+  h+='<button onclick="window._PLAN.closePlanModal({target:document.getElementById(\'planModalOverlay\')})" style="margin-top:12px;width:100%;background:#1e1a2e;border:none;color:#fff;border-radius:10px;padding:8px;cursor:pointer;font-weight:700;font-family:Nunito,sans-serif;">Fermer</button>';
+  box.innerHTML=h;
+}
+
+// ── MODAL: TEACHER ─────────────────────────────────────
+function renderModalTeacher(box){
+  var t=PL.teacher;
+  var h=modalHeader('Profil professeur');
+  h+='<div style="display:flex;flex-direction:column;gap:10px;">';
+  h+=lbl('Nom')+'<input class="pinput" id="tName" value="'+esc(t.name)+'" placeholder="Prénom Nom">';
+  h+=lbl('Instrument')+'<input class="pinput" id="tInst" value="'+esc(t.instrument||'')+'" placeholder="Flûte">';
+  h+='<div id="tWsBox"></div>';
+  h+='<div id="tBkBox"></div>';
+  h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">';
+  h+='<button onclick="window._PLAN.closePlanModal({target:document.getElementById(\'planModalOverlay\')})" style="background:#F3F4F6;border:none;color:#6B7280;border-radius:10px;padding:7px 14px;cursor:pointer;font-size:.8rem;font-weight:700;font-family:Nunito,sans-serif;">Annuler</button>';
+  h+='<button onclick="window._PLAN.saveTeacher()" style="background:#1e1a2e;border:none;color:#fff;border-radius:10px;padding:7px 16px;cursor:pointer;font-size:.8rem;font-weight:700;font-family:Nunito,sans-serif;">Enregistrer</button>';
+  h+='</div></div>';
+  box.innerHTML=h;
+  renderWSEditor(document.getElementById('tWsBox'), t.workSlots||[]);
+  renderBKEditor(document.getElementById('tBkBox'), t.breaks||[]);
+  box._ws=JSON.parse(JSON.stringify(t.workSlots||[]));
+  box._bk=JSON.parse(JSON.stringify(t.breaks||[]));
+}
+
+function renderWSEditor(container,ws){
+  container.innerHTML='';
+  var h='<div style="background:#F8F9FB;border-radius:12px;padding:10px;border:1.5px solid #EAECF0;">';
+  h+='<div style="font-size:.62rem;font-weight:800;color:#00875A;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Plages de travail</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:5px;align-items:end;margin-bottom:8px;">';
+  h+='<div>'+lbl('Jour')+'<select class="pinput" id="wsDay">';
+  PLAN_DAYS.forEach(function(d,i){h+='<option value="'+PLAN_DKEYS[i]+'">'+d+'</option>';});
+  h+='</select></div><div>'+lbl('Début')+'<input type="time" class="pinput" id="wsStart" value="09:00"></div>';
+  h+='<div>'+lbl('Fin')+'<input type="time" class="pinput" id="wsEnd" value="12:00"></div>';
+  h+='<button onclick="window._PLAN.addWS()" style="background:#00875A;border:none;color:#fff;border-radius:9px;width:34px;height:34px;font-size:1.2rem;font-weight:900;cursor:pointer;">+</button>';
+  h+='</div><div id="wsList">';
+  ws.forEach(function(w,i){h+=wsItem(w,i);});
+  h+='</div></div>';
+  container.innerHTML=h;
+}
+function wsItem(w,i){
+  var dl=PLAN_DAYS[PLAN_DKEYS.indexOf(w.day)]||w.day;
+  return '<div class="pav-item"><strong>'+dl+'</strong> '+esc(w.start)+'-'+esc(w.end)+'<button class="pav-del" onclick="window._PLAN.delWS('+i+')">×</button></div>';
+}
+function addWS(){
+  var box=document.getElementById('planModalContent');
+  var day=document.getElementById('wsDay').value;
+  var start=document.getElementById('wsStart').value,end=document.getElementById('wsEnd').value;
+  if(t2m(end)<=t2m(start)){planFlash('Heure invalide');return;}
+  box._ws.push({id:planUid(),day:day,start:start,end:end});
+  document.getElementById('wsList').innerHTML=box._ws.map(function(w,i){return wsItem(w,i);}).join('');
+}
+G.addWS=addWS;
+function delWS(i){var box=document.getElementById('planModalContent');box._ws.splice(i,1);document.getElementById('wsList').innerHTML=box._ws.map(function(w,j){return wsItem(w,j);}).join('');}
+G.delWS=delWS;
+
+function renderBKEditor(container,bk){
+  var h='<div style="background:#FFF5F5;border-radius:12px;padding:10px;border:1.5px solid #FED7D7;margin-top:8px;">';
+  h+='<div style="font-size:.62rem;font-weight:800;color:#E84393;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">Pauses</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:5px;align-items:end;margin-bottom:8px;">';
+  h+='<div>'+lbl('Jour')+'<select class="pinput" id="bkDay">';
+  PLAN_DAYS.forEach(function(d,i){h+='<option value="'+PLAN_DKEYS[i]+'">'+d+'</option>';});
+  h+='</select></div><div>'+lbl('Début')+'<input type="time" class="pinput" id="bkStart" value="12:00"></div>';
+  h+='<div>'+lbl('Fin')+'<input type="time" class="pinput" id="bkEnd" value="14:00"></div>';
+  h+='<button onclick="window._PLAN.addBK()" style="background:#E84393;border:none;color:#fff;border-radius:9px;width:34px;height:34px;font-size:1.2rem;font-weight:900;cursor:pointer;">+</button>';
+  h+='</div><div id="bkList">';
+  bk.forEach(function(b,i){h+=bkItem(b,i);});
+  h+='</div></div>';
+  container.innerHTML=h;
+}
+function bkItem(b,i){
+  var dl=PLAN_DAYS[PLAN_DKEYS.indexOf(b.day)]||b.day;
+  return '<div class="pav-item"><strong>'+dl+'</strong> '+esc(b.start)+'-'+esc(b.end)+'<button class="pav-del" onclick="window._PLAN.delBK('+i+')">×</button></div>';
+}
+function addBK(){
+  var box=document.getElementById('planModalContent');
+  var day=document.getElementById('bkDay').value;
+  var start=document.getElementById('bkStart').value,end=document.getElementById('bkEnd').value;
+  if(t2m(end)<=t2m(start)){planFlash('Heure invalide');return;}
+  box._bk.push({id:planUid(),day:day,start:start,end:end});
+  document.getElementById('bkList').innerHTML=box._bk.map(function(b,i){return bkItem(b,i);}).join('');
+}
+G.addBK=addBK;
+function delBK(i){var box=document.getElementById('planModalContent');box._bk.splice(i,1);document.getElementById('bkList').innerHTML=box._bk.map(function(b,j){return bkItem(b,j);}).join('');}
+G.delBK=delBK;
+
+function saveTeacher(){
+  var box=document.getElementById('planModalContent');
+  var name=document.getElementById('tName').value.trim();
+  if(!name){planFlash('Nom requis');return;}
+  var inst=document.getElementById('tInst').value.trim();
+  PL.teacher=Object.assign({},PL.teacher,{name:name,instrument:inst,workSlots:box._ws||[],breaks:box._bk||[]});
+  planSave();closePlanModalForce();planFlash('Profil enregistré');
+}
+G.saveTeacher=saveTeacher;
+
+// ── MODAL: SETTINGS ────────────────────────────────────
+function renderModalSettings(box){
+  var h=modalHeader('Paramètres');
+  h+='<div style="display:flex;flex-direction:column;gap:10px;">';
+  h+='<div>'+lbl('Cycles')+'</div>';
+  h+='<div id="cycList">';
+  PL.cycles.forEach(function(c,i){
+    h+='<div style="display:grid;grid-template-columns:1fr 80px 36px auto;gap:6px;align-items:center;background:'+c.light+';border-radius:10px;padding:7px 10px;border:1.5px solid '+c.color+'30;margin-bottom:5px;">';
+    h+='<input class="pinput" style="background:#fff;" data-cid="'+c.id+'" data-f="label" value="'+esc(c.label)+'" onchange="window._PLAN.updCycle(this)">';
+    h+='<input type="number" class="pinput" style="background:#fff;" data-cid="'+c.id+'" data-f="duration" value="'+c.duration+'" min="15" max="120" step="5" onchange="window._PLAN.updCycle(this)">';
+    h+='<input type="color" value="'+c.color+'" data-cid="'+c.id+'" onchange="window._PLAN.updCycleColor(this)" style="width:34px;height:34px;border:1.5px solid #E5E7EB;border-radius:7px;cursor:pointer;padding:2px;">';
+    h+='<button onclick="window._PLAN.delCycle(\''+c.id+'\')" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:1.1rem;">×</button>';
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<button onclick="window._PLAN.addCycle()" style="background:none;border:1.5px dashed #D1D5DB;color:#9CA3AF;border-radius:10px;padding:7px;cursor:pointer;font-size:.8rem;font-family:Nunito,sans-serif;width:100%;">+ Ajouter un cycle</button>';
+  h+='<hr style="border-color:#EAECF0;margin:4px 0;">';
+  h+='<button onclick="if(confirm(\'Effacer toutes les données ?\'))window._PLAN.resetAll()" style="background:#FEE2E2;border:1.5px solid #FCA5A5;color:#E53E3E;border-radius:8px;padding:7px;cursor:pointer;font-size:.78rem;font-weight:700;font-family:Nunito,sans-serif;width:100%;">Effacer toutes les données</button>';
+  h+='</div>';
+  box.innerHTML=h;
+}
+function updCycle(inp){var cid=inp.dataset.cid,f=inp.dataset.f;PL.cycles=PL.cycles.map(function(c){if(c.id!==cid)return c;var v=f==='duration'?(parseInt(inp.value)||30):inp.value;return Object.assign({},c,JSON.parse('{"'+f+'":'+JSON.stringify(v)+'}'));});planSave();}
+G.updCycle=updCycle;
+function updCycleColor(inp){var cid=inp.dataset.cid;PL.cycles=PL.cycles.map(function(c){return c.id===cid?Object.assign({},c,{color:inp.value}):c;});planSave();}
+G.updCycleColor=updCycleColor;
+function delCycle(id){PL.cycles=PL.cycles.filter(function(c){return c.id!==id;});planSave();openPlanModal('settings');}
+G.delCycle=delCycle;
+function addCycle(){PL.cycles.push({id:planUid(),label:'Nouveau',duration:30,color:'#8B5CF6',light:'#F5F3FF'});planSave();openPlanModal('settings');}
+G.addCycle=addCycle;
+function resetAll(){PL.students=[];PL.cycles=JSON.parse(JSON.stringify(PLAN_DEFAULT_CYCLES));PL.sch=null;PL.locked=[];PL.baseline=null;planSave();closePlanModalForce();setTab('students');planFlash('Données effacées');}
+G.resetAll=resetAll;
+
+// ── MODAL: SCORE ───────────────────────────────────────
+function renderModalScore(box){
+  if(!PL.sch){box.innerHTML='<p style="color:#9CA3AF;">Générez d\'abord le planning.</p>';return;}
+  var sc=computeScore(PL.sch,PL.students,PL.teacher,PL.weights,PL.baseline);
+  var h=modalHeader('Score');
+  var circ=201.06;
+  var off=Math.round(circ*(1-sc.finalScore/100));
+  h+='<div style="display:flex;align-items:center;gap:16px;background:'+sc.color+'10;border-radius:14px;padding:14px;margin-bottom:14px;">';
+  h+='<div class="score-ring" style="width:76px;height:76px;flex-shrink:0;">';
+  h+='<svg width="76" height="76" viewBox="0 0 76 76" style="transform:rotate(-90deg);">';
+  h+='<circle cx="38" cy="38" r="30" fill="none" stroke="#E5E7EB" stroke-width="6"/>';
+  h+='<circle cx="38" cy="38" r="30" fill="none" stroke="'+sc.color+'" stroke-width="6" stroke-dasharray="188.5" stroke-dashoffset="'+Math.round(188.5*(1-sc.finalScore/100))+'" stroke-linecap="round"/>';
+  h+='</svg>';
+  h+='<div class="score-ring-txt"><span style="font-size:1.35rem;font-weight:900;color:'+sc.color+';line-height:1;">'+sc.finalScore+'</span><span style="font-size:.52rem;color:'+sc.color+';opacity:.7;">/100</span></div></div>';
+  h+='<div><div style="font-family:Lora,serif;font-size:1.3rem;font-weight:600;color:#1e1a2e;">'+sc.label+'</div>';
+  h+='<div style="font-size:.76rem;color:#9CA3AF;margin-top:3px;">'+(sc.gaps>0?sc.gaps+' pause(s) longue(s)':'Aucune fragmentation')+'</div></div></div>';
+  [{label:'Souhaits',val:sc.preferred,total:sc.total,color:'#00B894'},
+   {label:'Possibles',val:sc.possible,total:sc.total,color:'#5b4fcf'},
+   {label:'Non placés',val:sc.unplaced,total:sc.total,color:'#E84393'},
+   {label:'Remplissage',val:sc.fillRate,total:100,color:'#E17055'}].forEach(function(b){
+    h+='<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:.72rem;"><span style="font-weight:600;color:#374151;">'+b.label+'</span><span style="color:'+b.color+';font-weight:700;">'+b.val+'/'+b.total+'</span></div>';
+    h+='<div style="background:#F3F4F6;border-radius:20px;height:7px;overflow:hidden;"><div style="width:'+Math.round(b.val/Math.max(b.total,1)*100)+'%;height:100%;background:'+b.color+';border-radius:20px;"></div></div></div>';
+  });
+  h+='<button onclick="window._PLAN.closePlanModal({target:document.getElementById(\'planModalOverlay\')})" style="width:100%;background:#1e1a2e;border:none;color:#fff;border-radius:10px;padding:8px;cursor:pointer;font-weight:700;font-family:Nunito,sans-serif;margin-top:4px;">Fermer</button>';
+  box.innerHTML=h;
+}
+
+// ── MODAL: WEIGHTS ─────────────────────────────────────
+function renderModalWeights(box){
+  var h=modalHeader('Poids & méthode');
+  h+='<p style="font-size:.8rem;color:#9CA3AF;margin-bottom:12px;">Ajustez l\'importance de chaque critère.</p>';
+  h+='<div style="background:#F8F9FB;border-radius:12px;padding:12px;margin-bottom:12px;">';
+  [{k:'wish',label:'Respect des souhaits',color:'#00B894',desc:'Priorité aux créneaux préférés'},
+   {k:'compact',label:'Compacité',color:'#5b4fcf',desc:'Minimiser les trous dans la journée'},
+   {k:'stab',label:'Stabilité',color:'#9B6FE8',desc:'Garder les mêmes créneaux qu\'avant'}].forEach(function(w){
+    h+='<div style="margin-bottom:12px;">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+    h+='<span style="font-size:.78rem;font-weight:700;color:#374151;">'+w.label+'</span>';
+    h+='<span style="font-weight:900;color:'+w.color+';font-size:.95rem;" id="wlbl_'+w.k+'">'+PL.weights[w.k]+'</span></div>';
+    h+='<input type="range" class="pw-slider" min="0" max="10" value="'+PL.weights[w.k]+'" oninput="window._PLAN.updWeight(\''+w.k+'\',+this.value)" style="accent-color:'+w.color+';">';
+    h+='<span style="font-size:.65rem;color:#9CA3AF;">'+w.desc+'</span></div>';
+  });
+  h+='</div>';
+  h+='<div style="background:#F0F9FF;border:1.5px solid #BAE6FD;border-radius:10px;padding:10px;margin-bottom:12px;">';
+  h+='<div style="font-size:.62rem;font-weight:800;color:#0284C7;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">Méthode</div>';
+  h+='<div style="display:flex;gap:6px;">';
+  [{id:'greedy',label:'Greedy',desc:'Rapide'},{id:'coverage',label:'Max élèves',desc:'Relocalisation'}].forEach(function(m){
+    var on=PL.genMethod===m.id;
+    h+='<button onclick="window._PLAN.setGenMethod(\''+m.id+'\')" style="flex:1;background:'+(on?'#0984E3':'#fff')+';border:1.5px solid '+(on?'#0984E3':'#E5E7EB')+';border-radius:9px;padding:8px;cursor:pointer;font-family:Nunito,sans-serif;text-align:left;">';
+    h+='<div style="font-weight:700;font-size:.78rem;color:'+(on?'#fff':'#1e1a2e')+';">'+m.label+'</div>';
+    h+='<div style="font-size:.62rem;color:'+(on?'rgba(255,255,255,.7)':'#9CA3AF')+';">'+m.desc+'</div></button>';
+  });
+  h+='</div></div>';
+  h+='<div style="display:flex;gap:6px;justify-content:flex-end;">';
+  h+='<button onclick="window._PLAN.generate(\''+PL.genMode+'\',0,PL.genMethod);window._PLAN.closePlanModal({target:document.getElementById(\'planModalOverlay\')})" style="background:#5b4fcf;border:none;color:#fff;border-radius:9px;padding:7px 14px;cursor:pointer;font-size:.78rem;font-weight:800;font-family:Nunito,sans-serif;">Générer</button>';
+  h+='<button onclick="window._PLAN.regenerate();window._PLAN.closePlanModal({target:document.getElementById(\'planModalOverlay\')})" style="background:#1e1a2e;border:none;color:#fff;border-radius:9px;padding:7px 14px;cursor:pointer;font-size:.78rem;font-weight:700;font-family:Nunito,sans-serif;">Nouvelle dispo</button>';
+  h+='</div>';
+  box.innerHTML=h;
+}
+function updWeight(k,v){PL.weights[k]=v;var lbl=document.getElementById('wlbl_'+k);if(lbl)lbl.textContent=v;planSave();}
+G.updWeight=updWeight;
+function setGenMethod(m){PL.genMethod=m;openPlanModal('weights');}
+G.setGenMethod=setGenMethod;
+
+// ── MODAL: UNPLACED ────────────────────────────────────
+function renderModalUnplaced(box){
+  var h=modalHeader('Élèves non placés');
+  h+='<p style="font-size:.8rem;color:#9CA3AF;margin-bottom:10px;">Raisons diagnostiquées :</p>';
+  if(!PL.unplacedDiag.length){h+='<p style="color:#00B894;font-weight:700;">Tous les élèves sont placés !</p>';}
+  PL.unplacedDiag.forEach(function(item){
+    var cy=PL.cycles.find(function(c){return item.student.cycle&&c.id===item.student.cycle.id;});
+    var ini=item.student.name.split(' ').map(function(n){return n[0];}).slice(0,2).join('');
+    h+='<div class="unpl-item">';
+    h+='<div style="width:34px;height:34px;border-radius:9px;background:'+(cy?cy.light:'#FEE2E2')+';border:2px solid '+(cy?cy.color:'#EF4444')+';display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.7rem;color:'+(cy?cy.color:'#EF4444')+';flex-shrink:0;">'+ini+'</div>';
+    h+='<div style="flex:1;"><div style="font-weight:700;font-size:.85rem;color:#1e1a2e;">'+esc(item.student.name)+'</div>';
+    h+='<div style="font-size:.75rem;font-weight:600;color:#E53E3E;margin-top:3px;">'+esc(item.reason)+'</div></div>';
+    h+='<button onclick="window._PLAN.openPlanModal(\'editSt\',\''+item.student.id+'\')" style="background:#fff;border:1.5px solid #E5E7EB;color:#6B7280;border-radius:7px;padding:4px 9px;cursor:pointer;font-size:.72rem;font-weight:700;font-family:Nunito,sans-serif;flex-shrink:0;">Éditer</button>';
+    h+='</div>';
+  });
+  if(PL.unplacedDiag.length){
+    h+='<button onclick="window._PLAN.doSwaps()" style="margin-top:8px;width:100%;background:#FDEAF3;border:1.5px solid #E84393;color:#E84393;border-radius:10px;padding:8px;cursor:pointer;font-weight:700;font-family:Nunito,sans-serif;">Essayer permutations</button>';
+  }
+  box.innerHTML=h;
+}
+function doSwaps(){
+  if(!PL.sch)return;
+  var up=PL.students.filter(function(s){return !PLAN_DKEYS.some(function(d){return (PL.sch[d]||[]).some(function(sl){return sl.studentId===s.id;});});});
+  PL.swapResults=findSwaps(up,PL.sch,PL.students,PL.teacher);
+  openPlanModal('swaps');
+}
+G.doSwaps=doSwaps;
+
+// ── MODAL: SWAPS ───────────────────────────────────────
+function renderModalSwaps(box){
+  var h=modalHeader('Permutations');
+  if(!PL.swapResults.length){h+='<p style="color:#00B894;font-weight:700;text-align:center;padding:1rem;">Tous les élèves sont placés !</p>';box.innerHTML=h;return;}
+  PL.swapResults.forEach(function(res,ri){
+    h+='<div style="border:1.5px solid #EAECF0;border-radius:12px;overflow:hidden;margin-bottom:8px;">';
+    h+='<div style="background:#FDEAF3;padding:8px 12px;display:flex;align-items:center;gap:8px;">';
+    h+='<span style="font-size:.65rem;font-weight:900;color:#E84393;background:#fff;border:1.5px solid #E84393;border-radius:20px;padding:1px 8px;">NON PLACÉ</span>';
+    h+='<span style="font-weight:800;color:#1e1a2e;font-size:.88rem;">'+esc(res.student.name)+'</span></div>';
+    h+='<div style="padding:8px 12px;display:flex;flex-direction:column;gap:6px;">';
+    res.swaps.forEach(function(sw,si){
+      h+='<div style="background:#F8F9FB;border-radius:9px;padding:8px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+      h+='<div style="flex:1;font-size:.73rem;color:#374151;line-height:1.5;"><strong>'+esc(sw.blockerName)+'</strong> ('+PLAN_DAYS[PLAN_DKEYS.indexOf(sw.slotDay)]+' '+m2t(sw.slotStart)+') se déplace vers <strong style="color:#5b4fcf;">'+PLAN_DAYS[PLAN_DKEYS.indexOf(sw.newDay)]+' '+m2t(sw.newStart)+'</strong></div>';
+      h+='<button onclick="window._PLAN.applySwap('+ri+','+si+')" style="background:#1e1a2e;border:none;color:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.72rem;font-weight:700;font-family:Nunito,sans-serif;flex-shrink:0;">Appliquer</button>';
+      h+='</div>';
+    });
+    h+='</div></div>';
+  });
+  box.innerHTML=h;
+}
+function applySwap(ri,si){
+  var res=PL.swapResults[ri];if(!res)return;
+  var sw=res.swaps[si];if(!sw)return;
+  var upSt=res.student;
+  var bSt=PL.students.find(function(s){return s.id===sw.blockerId;});
+  PLAN_DKEYS.forEach(function(d){PL.sch[d]=(PL.sch[d]||[]).slice();});
+  PL.sch[sw.slotDay]=PL.sch[sw.slotDay].filter(function(s){return s.studentId!==sw.blockerId;});
+  if(bSt) PL.sch[sw.newDay]=[].concat(PL.sch[sw.newDay]||[],{studentId:sw.blockerId,startMin:sw.newStart,endMin:sw.newStart+bSt.cycle.duration,locked:false,availType:sw.newType});
+  PL.sch[sw.slotDay]=[].concat(PL.sch[sw.slotDay]||[],{studentId:upSt.id,startMin:sw.slotStart,endMin:sw.slotStart+upSt.cycle.duration,locked:false,availType:'possible'});
+  planSave();closePlanModalForce();setTab('schedule');planFlash('Permutation appliquée !');
+}
+G.applySwap=applySwap;
+
+// ── DEMO DATA ──────────────────────────────────────────
+function loadDemo(){
+  var DEMO_WS=[{id:'w1',day:'lundi',start:'09:00',end:'12:30'},{id:'w2',day:'lundi',start:'14:00',end:'18:30'},{id:'w3',day:'mardi',start:'09:00',end:'12:00'},{id:'w4',day:'mercredi',start:'14:00',end:'19:00'},{id:'w5',day:'jeudi',start:'09:00',end:'12:30'},{id:'w6',day:'jeudi',start:'14:00',end:'18:00'},{id:'w7',day:'vendredi',start:'09:00',end:'12:00'},{id:'w8',day:'vendredi',start:'14:00',end:'17:30'},{id:'w9',day:'samedi',start:'09:00',end:'13:00'}];
+  var DEMO_BK=[{id:'b1',day:'lundi',start:'12:30',end:'14:00'},{id:'b2',day:'jeudi',start:'12:30',end:'14:00'},{id:'b3',day:'vendredi',start:'12:00',end:'14:00'}];
+  var DEMO_NAMES=['Emma Martin','Lucas Bernard','Léa Dubois','Nathan Thomas','Chloé Robert','Hugo Richard','Inès Petit','Arthur Durand','Manon Leroy','Tom Moreau','Alice Simon','Raphaël Laurent'];
+  var DEMO_INST=['Piano','Violon','Guitare','Violoncelle','Flûte','Clarinette','Trompette','Alto'];
+  var t=PL.teacher;
+  var ws=t.workSlots.length?t.workSlots:DEMO_WS;
+  var byDay={};ws.forEach(function(s){if(!byDay[s.day])byDay[s.day]=[];byDay[s.day].push(s);});
+  var days=Object.keys(byDay);
+  var pairs=[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,2],[1,3],[2,4],[3,5],[4,0],[5,1]];
+  PL.students=DEMO_NAMES.map(function(name,i){
+    var cycle=PL.cycles[i%PL.cycles.length],instrument=DEMO_INST[i%DEMO_INST.length];
+    var pi=pairs[i%pairs.length][0],si2=pairs[i%pairs.length][1];
+    var pDay=days[pi%days.length],sDay=days[si2%days.length];
+    var pSlot=byDay[pDay]&&byDay[pDay][0],sSlot=byDay[sDay]&&byDay[sDay][0];
+    var avail=[];
+    if(pSlot){var base=t2m(pSlot.start),off=(i%4)*60,st=base+off,en=Math.min(t2m(pSlot.end),st+90+(i%2)*30);avail.push({id:planUid(),day:pDay,start:m2t(st),end:m2t(Math.max(en,st+cycle.duration+1)),type:'preferred'});}
+    if(sSlot&&sDay!==pDay)avail.push({id:planUid(),day:sDay,start:sSlot.start,end:sSlot.end,type:'possible'});
+    return {id:planUid(),name:name,instrument:instrument,cycle:cycle,availabilities:avail,priority:3};
+  });
+  if(!t.workSlots.length){PL.teacher=Object.assign({},PL.teacher,{workSlots:DEMO_WS,breaks:DEMO_BK});}
+  PL.locked=[];PL.sch=null;
+  planSave();renderTab();planFlash('Démo chargée !');
+}
+G.loadDemo=loadDemo;
+
+// ── INJECT BUTTON INTO MAESTRO OUTILS ────────────────
+function injectPlanButton(){
+  // Try to inject into outilsPage or tools grid in Maestro
+  // We try multiple selectors in case the structure varies
+  var targets=[
+    document.querySelector('.ga'),              // tool grid
+    document.getElementById('outilsPage'),      // outils page
+    document.querySelector('[data-page="outils"]'),
+  ];
+  var inserted=false;
+  targets.forEach(function(container){
+    if(inserted||!container)return;
+    // Check if button already exists
+    if(container.querySelector('#planToolBtn'))return;
+    var tile=document.createElement('div');
+    tile.className='tool-tile';
+    tile.id='planToolBtn';
+    tile.innerHTML='<div class="tool-ico">📅</div><div class="tool-name">Planning cours</div><div class="tool-desc">Emploi du temps hebdomadaire</div>';
+    tile.addEventListener('click',function(){window._PLAN.openPlanApp();});
+    container.appendChild(tile);
+    inserted=true;
+  });
+  if(!inserted){
+    // Fallback: inject a floating button visible on the outils nav item click
+    document.addEventListener('click',function(e){
+      // detect nav item click for outils
+    });
+    // Also: watch for DOM mutations to inject when outils page becomes visible
+    var obs=new MutationObserver(function(){injectPlanButton();});
+    obs.observe(document.body,{childList:true,subtree:true,attributeFilter:['class']});
+  }
+}
+
+// Also wire up to professor role outils nav
+function wirePlanToNav(){
+  // Look for an existing "Outils" page section to add a direct button
+  // Inject directly into any .ga grid that is visible
+  var allGa=document.querySelectorAll('.ga');
+  allGa.forEach(function(grid){
+    if(grid.querySelector('#planToolBtn'))return;
+    var tile=document.createElement('div');
+    tile.className='tool-tile';
+    tile.id='planToolBtn';
+    tile.innerHTML='<div class="tool-ico">📅</div><div class="tool-name">Planning cours</div><div class="tool-desc">Emploi du temps hebdomadaire</div>';
+    tile.addEventListener('click',function(){window._PLAN.openPlanApp();});
+    grid.insertBefore(tile,grid.firstChild);
+  });
+}
+
+// Run after DOM ready
+function onReady(fn){if(document.readyState!=='loading')fn();else document.addEventListener('DOMContentLoaded',fn);}
+onReady(function(){
+  setTimeout(function(){
+    injectPlanButton();
+    // Re-run when nav changes (Maestro uses class toggling .on for pages)
+    var obs=new MutationObserver(function(mutations){
+      mutations.forEach(function(m){
+        if(m.target&&m.target.classList&&m.target.classList.contains('pg')){
+          wirePlanToNav();
+        }
+      });
+    });
+    obs.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
+  },500);
+});
+
+// keyboard shortcut
+document.addEventListener('keydown',function(e){
+  if(document.getElementById('planApp').classList.contains('on')){
+    if(e.key==='Escape') closePlanApp();
+    if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();planUndo();}
+  }
+});
+
+})();
+</script>
+
+<!-- FIN PATCH CONSERVATOIRE PARTIE 2 -->
 </body>
 </html>
