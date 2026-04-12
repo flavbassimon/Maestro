@@ -8036,7 +8036,9 @@ function computeStats(sch, students, cycles, teacher){
 function planSave(){
   try {
     if(typeof fbDb==='undefined'||!fbDb)return;
-    var uid = (typeof currentUser!=='undefined'&&currentUser)?currentUser.uid:'anon';
+    var uid=(typeof currentUser!=='undefined'&&currentUser)?currentUser.uid:null;
+    if(!uid)return;
+    if(!PL.students.length&&!PL.sch&&!PL.teacher.workSlots.length)return;
     var data={
       cycles:PL.cycles, students:PL.students, sch:PL.sch,
       locked:PL.locked, teacher:PL.teacher, weights:PL.weights,
@@ -8045,6 +8047,7 @@ function planSave(){
     fbDb.ref('conservatoire/'+uid).set(data).catch(function(){});
   } catch(e){}
 }
+
 function planLoad(cb){
   try {
     if(typeof fbDb==='undefined'||!fbDb){if(cb)cb();return;}
