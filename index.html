@@ -9164,6 +9164,8 @@ G.loadDemo=loadDemo;
 
 // ── INJECT BUTTON INTO MAESTRO OUTILS ────────────────
 function injectPlanButton(){
+  // Professeurs uniquement
+  if(typeof currentUser==='undefined'||!currentUser||currentUser.role!=='prof') return;
   // Try to inject into outilsPage or tools grid in Maestro
   // We try multiple selectors in case the structure varies
   var targets=[
@@ -9197,6 +9199,7 @@ function injectPlanButton(){
 
 // Also wire up to professor role outils nav
 function wirePlanToNav(){
+  if(typeof currentUser==='undefined'||!currentUser||currentUser.role!=='prof') return;
   // Look for an existing "Outils" page section to add a direct button
   // Inject directly into any .ga grid that is visible
   var allGa=document.querySelectorAll('.ga');
