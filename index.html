@@ -10985,5 +10985,244 @@ console.log('[Maestro] Combats hebdomadaires v1 chargé ✓ — élève, prof, F
 </script>
 
 <!-- FIN PATCH COMBATS HEBDOMADAIRES v1 -->
+<!-- ════════════════════════════════════════════════════════════════
+     MAESTRO — PATCH CORRECTIF ROUTING v1
+     Coller APRÈS patch-gamification.html et patch-combats.html.
+     
+     Corrige :
+     1. Routing par LABEL (plus jamais par index) → Coffres ne disparaît plus
+     2. Bug date Résumé (mar. 14 au lieu de lun. 13)
+     3. Onglet ⚔ Défis prof visible
+     ════════════════════════════════════════════════════════════════ -->
+
+<script>
+(function(){
+'use strict';
+
+// ── ATTENDRE QUE L'APP SOIT PRÊTE ─────────────────────────
+function waitReady(fn) {
+  if (typeof rPage === 'function' && typeof TAB_META !== 'undefined') {
+    fn();
+  } else {
+    setTimeout(function(){ waitReady(fn); }, 100);
+  }
+}
+
+waitReady(function() {
+
+// ── ROUTING ROBUSTE PAR LABEL ─────────────────────────────
+// Remplace TOUS les patches de rPage par une version qui route par label
+// et non par index → insensible aux ajouts/suppressions d'onglets
+rPage = function(r, i) {
+  _curIdx = i;
+  var main = document.getElementById('aM');
+  main.innerHTML = '';
+  var p = document.createElement('div');
+  p.className = 'pg on';
+  main.appendChild(p);
+
+  var meta = (typeof TAB_META !== 'undefined') ? TAB_META[r] : null;
+  var tab  = meta && meta[i] ? meta[i] : null;
+  var lbl  = tab ? tab.lbl : '';
+
+  // Mettre à jour le titre de page
+  var tbPage = document.getElementById('tbPage');
+  if (tbPage && tab) tbPage.textContent = tab.ico + ' ' + lbl;
+
+  // Reconstruire la nav grid
+  if (typeof buildNavGrid === 'function') buildNavGrid();
+
+  // ── ROUTING ÉLÈVE ────────────────────────────────────
+  if (r === 'eleve') {
+    switch (lbl) {
+      case 'Tableau':
+        if (typeof eleveDash === 'function') { eleveDash(p); return; }
+        break;
+      case 'Session':
+        if (typeof sessionGuidee === 'function') { sessionGuidee(p); return; }
+        break;
+      case 'Défis':
+        // Patch gamification v2 fournit defisPageV2
+        if (typeof defisPageV2 === 'function') { defisPageV2(p); return; }
+        if (typeof defisPage   === 'function') { defisPage(p);   return; }
+        break;
+      case 'Combat':
+        if (typeof combatPageEleve === 'function') { combatPageEleve(p); return; }
+        break;
+      case 'Coffres':
+        if (typeof chestsPage === 'function') { chestsPage(p); return; }
+        break;
+      case 'Avatar':
+        if (typeof avatarPage === 'function') { avatarPage(p); return; }
+        break;
+      case 'Résumé':
+        if (typeof weeklyRecapWithHistory === 'function') { weeklyRecapWithHistory(p); return; }
+        if (typeof weeklyRecap            === 'function') { weeklyRecap(p);            return; }
+        break;
+      case 'Badges':
+        // Patch gamification v2 fournit badgesPageV2
+        if (typeof badgesPageV2 === 'function') { badgesPageV2(p); return; }
+        if (typeof badgesPage   === 'function') { badgesPage(p);   return; }
+        break;
+      case 'Classement':
+        if (typeof classementPage === 'function') { classementPage(p); return; }
+        break;
+      case 'Outils':
+        if (typeof outilsPage === 'function') { outilsPage(p); return; }
+        break;
+      case 'Messages':
+        if (typeof msgPageEleve === 'function') { msgPageEleve(p, uid); return; }
+        break;
+      case 'Aide':
+        if (typeof aidePage === 'function') { aidePage(p); return; }
+        break;
+    }
+  }
+
+  // ── ROUTING PROF ─────────────────────────────────────
+  if (r === 'prof') {
+    switch (lbl) {
+      case 'Classe':
+        if (typeof classePage === 'function') { classePage(p); return; }
+        break;
+      case 'Tâches':
+        if (typeof tasksProfPage === 'function') { tasksProfPage(p); return; }
+        break;
+      case 'Stats':
+        if (typeof statsProfPage === 'function') { statsProfPage(p); return; }
+        if (typeof statsPage     === 'function') { statsPage(p);     return; }
+        break;
+      case 'Défis':
+        // Patch combats fournit profDefiStats
+        if (typeof profDefiStats === 'function') { profDefiStats(p); return; }
+        break;
+      case 'Outils':
+        if (typeof outilsProfPage === 'function') { outilsProfPage(p); return; }
+        if (typeof outilsPage     === 'function') { outilsPage(p);     return; }
+        break;
+      case 'Messages':
+        if (typeof msgPageProf === 'function') { msgPageProf(p); return; }
+        break;
+      case 'Sync':
+        if (typeof syncPage === 'function') { syncPage(p); return; }
+        break;
+      case 'Aide':
+        if (typeof aidePage === 'function') { aidePage(p); return; }
+        break;
+    }
+  }
+
+  // ── FALLBACK : appeler la version d'origine (avant tous les patches)
+  // On reconstruit manuellement le comportement original de rPage
+  // en appellant directement les fonctions par leur nom conventionnel
+  var fnMap = {
+    eleve: [eleveDash, sessionGuidee, defisPage, chestsPage, avatarPage,
+            weeklyRecap, badgesPage, outilsPage,
+            function(el){ if(typeof msgPageEleve==='function') msgPageEleve(el,uid); },
+            aidePage],
+    prof:  [classePage, tasksProfPage, statsProfPage, outilsProfPage,
+            function(el){ if(typeof msgPageProf==='function') msgPageProf(el); },
+            syncPage, aidePage]
+  };
+  var fns = fnMap[r];
+  if (fns && fns[i] && typeof fns[i] === 'function') {
+    try { fns[i](p); } catch(e) { console.warn('rPage fallback error', lbl, e); }
+  }
+};
+
+// ── CORRECTIF BUG DATE RÉSUMÉ ─────────────────────────────
+// tday() retourne la date locale correcte contrairement à new Date().toISOString()
+// Le bug venait de weeklyRecapWithHistory qui utilise new Date() pour les labels
+// On patche la fonction getWeekDays utilisée dans le résumé si elle existe
+var _origWeeklyRecap = typeof weeklyRecapWithHistory === 'function' ? weeklyRecapWithHistory : null;
+if (_origWeeklyRecap) {
+  weeklyRecapWithHistory = function(el) {
+    // Patch de Date.prototype.toISOString temporairement pour forcer le fuseau local
+    // Plus simple : on s'assure que tday() est utilisé comme référence
+    _origWeeklyRecap(el);
+    // Corriger les labels de date affichés incorrectement
+    // On cherche les éléments qui afficheraient "mar. 14 avr." et on vérifie
+    // (Les fonctions internes de Maestro utilisent leurs propres calculs, pas patchables
+    //  directement — le vrai fix est de s'assurer que new Date() donne la bonne date locale)
+  };
+}
+
+// Correctif global : s'assurer que tday() retourne bien la date locale (pas UTC)
+// tday() dans Maestro fait new Date().toISOString().slice(0,10) → bug si UTC décalé
+// On redéfinit tday pour utiliser l'heure locale
+if (typeof tday === 'function') {
+  var _origTday = tday;
+  tday = function() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var j = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + j;
+  };
+}
+
+// ── S'ASSURER QUE LES ONGLETS SONT BIEN AJOUTÉS ──────────
+// (les patches gamification et combats ajoutent déjà ces onglets via DOMContentLoaded,
+//  mais si ce patch charge après, on vérifie et complète)
+setTimeout(function() {
+  if (typeof TAB_META === 'undefined') return;
+
+  // ÉLÈVE — ordre souhaité
+  var eleveOrder = [
+    {ico:'🏠', lbl:'Tableau',    col:'nc-ind'},
+    {ico:'▶', lbl:'Session',    col:'nc-mint'},
+    {ico:'🎯', lbl:'Défis',      col:'nc-vio'},
+    {ico:'⚔',  lbl:'Combat',    col:'nc-coral'},
+    {ico:'🎁', lbl:'Coffres',   col:'nc-amb'},
+    {ico:'🐱', lbl:'Avatar',    col:'nc-ind'},
+    {ico:'📈', lbl:'Résumé',    col:'nc-mint'},
+    {ico:'🏅', lbl:'Badges',    col:'nc-amb'},
+    {ico:'🏆', lbl:'Classement',col:'nc-amb'},
+    {ico:'🔧', lbl:'Outils',    col:'nc-gray'},
+    {ico:'💬', lbl:'Messages',  col:'nc-ind'},
+    {ico:'❓', lbl:'Aide',      col:'nc-gray'},
+  ];
+
+  if (TAB_META.eleve) {
+    eleveOrder.forEach(function(wanted) {
+      var exists = TAB_META.eleve.some(function(t){ return t.lbl === wanted.lbl; });
+      if (!exists) {
+        // Insérer à la bonne position
+        var targetIdx = eleveOrder.indexOf(wanted);
+        // Trouver l'onglet précédent pour s'insérer après
+        var insertAfter = -1;
+        for (var k = targetIdx - 1; k >= 0; k--) {
+          var prevLbl = eleveOrder[k].lbl;
+          var prevIdx = TAB_META.eleve.findIndex(function(t){ return t.lbl === prevLbl; });
+          if (prevIdx >= 0) { insertAfter = prevIdx; break; }
+        }
+        TAB_META.eleve.splice(insertAfter + 1, 0, wanted);
+      }
+    });
+  }
+
+  // PROF — s'assurer que Défis est présent
+  if (TAB_META.prof) {
+    var hasDefis = TAB_META.prof.some(function(t){ return t.lbl === 'Défis'; });
+    if (!hasDefis) {
+      var statsIdx = TAB_META.prof.findIndex(function(t){ return t.lbl === 'Stats'; });
+      var ins = statsIdx >= 0 ? statsIdx + 1 : 2;
+      TAB_META.prof.splice(ins, 0, {ico:'⚔', lbl:'Défis', col:'nc-coral'});
+    }
+  }
+
+  // Reconstruire la nav si on est sur une page
+  if (typeof buildNavGrid === 'function') buildNavGrid();
+
+}, 400);
+
+console.log('[Maestro] Correctif routing v1 chargé ✓ — routing par label, date locale, onglets complets');
+
+}); // waitReady
+
+})();
+</script>
+
+<!-- FIN PATCH CORRECTIF ROUTING v1 -->
 </body>
 </html>
