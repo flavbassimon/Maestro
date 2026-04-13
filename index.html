@@ -9243,5 +9243,1747 @@ document.addEventListener('keydown',function(e){
 </script>
 
 <!-- FIN PATCH CONSERVATOIRE PARTIE 2 -->
+<!-- ════════════════════════════════════════════════════════════════
+     MAESTRO — PATCH GAMIFICATION v2
+     Coller juste avant </body>, après tous les autres patches.
+
+     Ce patch ajoute :
+     1. Célébration animée à la fin de chaque séance
+     2. Streak permanent + bonus XP ×2 à 7 jours
+     3. Défis quotidiens renouvelables (3 courts + 1 hebdo)
+     4. Classement anonyme top 3 inter-classe
+     ════════════════════════════════════════════════════════════════ -->
+
+<style id="gami-v2-css">
+/* ── CÉLÉBRATION POPUP ─────────────────────────────────── */
+#gamiCelebration {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  pointer-events: none;
+}
+#gamiCelebration.on {
+  display: block;
+}
+#gamiCelebCard {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  background: linear-gradient(145deg, #1a1040, #2d1b69);
+  border: 1.5px solid rgba(155,111,232,.4);
+  border-radius: 20px;
+  padding: 20px 24px;
+  width: min(360px, 90vw);
+  box-shadow: 0 24px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(155,111,232,.2);
+  pointer-events: all;
+  transition: transform .5s cubic-bezier(.34,1.56,.64,1), opacity .5s ease;
+  opacity: 0;
+}
+#gamiCelebCard.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+.gami-celeb-xp {
+  font-family: 'Lora', serif;
+  font-size: 2.8rem;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.gami-celeb-sub {
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: rgba(155,111,232,.8);
+  text-align: center;
+  margin-bottom: 16px;
+}
+.gami-celeb-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  margin-bottom: 14px;
+  min-height: 0;
+}
+.gami-celeb-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: .75rem;
+  font-weight: 700;
+  color: white;
+  animation: gamiPop .4s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes gamiPop {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.gami-celeb-streak {
+  text-align: center;
+  font-size: .82rem;
+  color: rgba(255,255,255,.6);
+  margin-bottom: 14px;
+}
+.gami-celeb-streak strong {
+  color: #f5a623;
+}
+.gami-celeb-close {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255,255,255,.12);
+  color: white;
+  font-family: 'Nunito', sans-serif;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .18s;
+}
+.gami-celeb-close:hover {
+  background: rgba(255,255,255,.2);
+}
+/* Barre XP animée */
+.gami-xp-bar-wrap {
+  height: 5px;
+  background: rgba(255,255,255,.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.gami-xp-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #9b6fe8, #5b4fcf);
+  transition: width 1.2s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── CONFETTIS ──────────────────────────────────────────── */
+.gami-confetti {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 7999;
+  animation: gamiConfettiFall linear forwards;
+}
+@keyframes gamiConfettiFall {
+  0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* ── STREAK BADGE PERMANENT ─────────────────────────────── */
+.gami-streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #ff6b35, #f5a623);
+  border-radius: 20px;
+  padding: 4px 10px 4px 8px;
+  font-size: .72rem;
+  font-weight: 900;
+  color: white;
+  box-shadow: 0 2px 8px rgba(245,166,35,.4);
+  cursor: pointer;
+  transition: transform .15s;
+}
+.gami-streak-badge:hover { transform: scale(1.05); }
+.gami-streak-badge.cold {
+  background: linear-gradient(135deg, #6b7280, #9ca3af);
+  box-shadow: none;
+}
+.gami-streak-fire {
+  font-size: .9rem;
+  animation: gamiFlicker 1.8s ease-in-out infinite;
+}
+@keyframes gamiFlicker {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.15) rotate(3deg); }
+}
+
+/* ── DÉFIS RENOUVELABLES ───────────────────────────────── */
+.gami-defi-card {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.gami-defi-card.done {
+  border-color: var(--mint);
+  background: linear-gradient(135deg, #f0fdf9, #ecfdf5);
+}
+body.dark .gami-defi-card.done {
+  background: linear-gradient(135deg, #0d2a1e, #082a1e);
+}
+.gami-defi-progress {
+  height: 5px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 7px;
+}
+.gami-defi-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+.gami-defi-xp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--ambl);
+  border: 1px solid var(--amb);
+  color: #9a6000;
+  border-radius: 20px;
+  padding: 1px 7px;
+  font-size: .62rem;
+  font-weight: 800;
+}
+.gami-refresh-tag {
+  font-size: .58rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ── CLASSEMENT ANONYME ─────────────────────────────────── */
+.gami-rank-card {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.gami-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  transition: background .15s;
+}
+.gami-rank-item:last-child { border-bottom: none; }
+.gami-rank-item.me {
+  background: var(--indl);
+}
+.gami-rank-medal {
+  font-size: 1.4rem;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.gami-rank-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .85rem;
+  font-weight: 900;
+  color: white;
+  flex-shrink: 0;
+}
+.gami-rank-bar {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.gami-rank-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* ── NIVEAU PROGRESS RING ──────────────────────────────── */
+.gami-lvl-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.gami-lvl-ring-txt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* ── BONUS XP TAG ──────────────────────────────────────── */
+.gami-bonus-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: .65rem;
+  font-weight: 800;
+  color: #92400e;
+  animation: gamiPulse 2s ease-in-out infinite;
+}
+@keyframes gamiPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.3); }
+  50%      { box-shadow: 0 0 0 5px rgba(245,158,11,0); }
+}
+</style>
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   MAESTRO GAMIFICATION v2
+   ════════════════════════════════════════════════════════════════ */
+(function() {
+'use strict';
+
+// ── NIVEAUX ────────────────────────────────────────────────
+var LEVELS = [
+  {min:0,    name:'Novice',       color:'#9ca3af', ico:'🌱', next:'Apprenti'},
+  {min:150,  name:'Apprenti',     color:'#3b9edd', ico:'🎵', next:'Musicien'},
+  {min:400,  name:'Musicien',     color:'#5b4fcf', ico:'🎶', next:'Virtuose'},
+  {min:800,  name:'Virtuose',     color:'#9b6fe8', ico:'🎼', next:'Maestro'},
+  {min:1500, name:'Maestro',      color:'#f5a623', ico:'⭐', next:'Grand Maître'},
+  {min:3000, name:'Grand Maître', color:'#f0614a', ico:'👑', next:null}
+];
+
+// ── BADGES (étendus) ───────────────────────────────────────
+var BADGES_EXT = [
+  {id:'b1', ico:'🌱', n:'Premier pas',     d:'1ère minute',           r:function(s){return s.tm>0;}},
+  {id:'b2', ico:'🔥', n:'3 jours',         d:'3j consécutifs',        r:function(s){return s.st>=3;}},
+  {id:'b3', ico:'⚡', n:'Sem. pleine',     d:'7j consécutifs',        r:function(s){return s.st>=7;}},
+  {id:'b4', ico:'⏰', n:'1h par jour',     d:'60 min en une journée', r:function(s){return s.md>=60;}},
+  {id:'b5', ico:'🎵', n:'5 heures',        d:'5h cumulées',           r:function(s){return s.tm>=300;}},
+  {id:'b6', ico:'🎶', n:'10 heures',       d:'10h cumulées',          r:function(s){return s.tm>=600;}},
+  {id:'b7', ico:'🎼', n:'20 heures',       d:'20h cumulées',          r:function(s){return s.tm>=1200;}},
+  {id:'b8', ico:'✅', n:'10 tâches',       d:'10 tâches complétées',  r:function(s){return s.td>=10;}},
+  {id:'b9', ico:'🎯', n:'Objectif',        d:'Objectif hebdo atteint',r:function(s,d){return s.wm>=(d.weekGoal||200);}},
+  {id:'b10',ico:'👑', n:'Maestro',         d:'20h + 7j consécutifs',  r:function(s){return s.tm>=1200&&s.st>=7;}},
+  {id:'b11',ico:'💎', n:'Régularité',      d:'14j consécutifs',       r:function(s){return s.st>=14;}},
+  {id:'b12',ico:'🚀', n:'Décollage',       d:'30 min le 1er jour',    r:function(s){return s.tm>=30;}},
+  {id:'b13',ico:'🌙', n:'Noctambule',      d:'50h cumulées',          r:function(s){return s.tm>=3000;}},
+  {id:'b14',ico:'⚔',  n:'Défi relevé',    d:'5 défis complétés',     r:function(s,d){return (d.defisDone||0)>=5;}},
+];
+
+// ── DÉFIS QUOTIDIENS ───────────────────────────────────────
+// Ils se renouvellent chaque jour à minuit (basé sur la date)
+function getDailyDefis(d) {
+  var today = tday();
+  var seed = today.replace(/-/g,'') | 0;
+  // Génère 3 défis courts + 1 hebdo déterministes par la date
+  var pool = [
+    {id:'d_15',  ico:'⏱', t:'15 minutes',    desc:'Pratique 15 min aujourd\'hui', xp:20,  check:function(s){return s.wm>=15;},  v:function(s){return Math.min(15,s.wm);}, m:15},
+    {id:'d_30',  ico:'⏱', t:'30 minutes',    desc:'Pratique 30 min aujourd\'hui', xp:35,  check:function(s){return s.wm>=30;},  v:function(s){return Math.min(30,s.wm);}, m:30},
+    {id:'d_45',  ico:'⏱', t:'45 minutes',    desc:'Pratique 45 min aujourd\'hui', xp:55,  check:function(s){return s.wm>=45;},  v:function(s){return Math.min(45,s.wm);}, m:45},
+    {id:'d_60',  ico:'⏰', t:'1 heure pile',  desc:'1 heure sans interruption',    xp:80,  check:function(s){return s.md>=60;},  v:function(s){return Math.min(60,s.md);}, m:60},
+    {id:'d_tk1', ico:'✅', t:'1 tâche',       desc:'Complète 1 tâche du jour',     xp:25,  check:function(s,d){return (d.tasks||[]).filter(function(t){return t.done;}).length>0;}, v:function(s,d){return Math.min(1,(d.tasks||[]).filter(function(t){return t.done;}).length);}, m:1},
+    {id:'d_tk2', ico:'✅', t:'3 tâches',      desc:'Complète 3 tâches',            xp:60,  check:function(s,d){return (d.tasks||[]).filter(function(t){return t.done;}).length>=3;}, v:function(s,d){return Math.min(3,(d.tasks||[]).filter(function(t){return t.done;}).length);}, m:3},
+    {id:'d_str', ico:'🔥', t:'Streak actif',  desc:'Garde ta série en vie',        xp:15,  check:function(s){return s.st>=1;},   v:function(s){return Math.min(1,s.st);}, m:1},
+    {id:'d_20',  ico:'🎯', t:'20 minutes',    desc:'Pratique 20 min aujourd\'hui', xp:28,  check:function(s){return s.wm>=20;},  v:function(s){return Math.min(20,s.wm);}, m:20},
+  ];
+  // Sélection déterministe par la date
+  var rng = seed;
+  function next() { rng = (rng * 1664525 + 1013904223) & 0xffffffff; return Math.abs(rng); }
+  var idx = [next()%pool.length, (next()%pool.length+1)%pool.length, (next()%pool.length+2)%pool.length];
+  // Dédupliquer
+  idx = idx.filter(function(v,i,a){return a.indexOf(v)===i;});
+  while(idx.length < 3) idx.push((idx[idx.length-1]+1)%pool.length);
+  var daily = idx.slice(0,3).map(function(i){return pool[i];});
+
+  // Défi hebdo fixe (change chaque lundi)
+  var weekSeed = today.slice(0,7).replace(/-/g,'') | 0;
+  var weekDefis = [
+    {id:'dw_obj', ico:'🎯', t:'Objectif semaine', desc:'Atteins ton objectif hebdo', xp:150, isWeek:true,
+      check:function(s,d){return s.wm>=(d.weekGoal||200);}, v:function(s,d){return Math.min(d.weekGoal||200,s.wm);}, m:function(d){return d.weekGoal||200;}},
+    {id:'dw_3d',  ico:'🔥', t:'3 jours de suite', desc:'Travaille 3 jours consécutifs', xp:100, isWeek:true,
+      check:function(s){return s.st>=3;}, v:function(s){return Math.min(3,s.st);}, m:3},
+    {id:'dw_2h',  ico:'⏱', t:'2h cette semaine', desc:'Cumule 2 heures cette semaine', xp:120, isWeek:true,
+      check:function(s){return s.wm>=120;}, v:function(s){return Math.min(120,s.wm);}, m:120},
+  ];
+  var wi = Math.abs(weekSeed) % weekDefis.length;
+  daily.push(weekDefis[wi]);
+  return daily;
+}
+
+// ── XP AVEC STREAK BONUS ──────────────────────────────────
+function getXPv2(d) {
+  var s = gStats(d);
+  var base = s.tm*2 + s.st*10 + s.td*15 + s.gh*25;
+  // Bonus ×2 si 7+ jours consécutifs
+  if (s.st >= 7) base = Math.round(base * 1.15);
+  return base;
+}
+
+// ── NIVEAU COURANT ────────────────────────────────────────
+function getCurrentLevel(xp) {
+  var cur = LEVELS[0];
+  for (var i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].min) { cur = LEVELS[i]; break; }
+  }
+  return cur;
+}
+
+// ── BADGES DÉBLOQUÉS CETTE SÉANCE ────────────────────────
+function getNewBadges(dBefore, dAfter) {
+  var sBefore = gStats(dBefore), sAfter = gStats(dAfter);
+  var newOnes = [];
+  BADGES_EXT.forEach(function(b) {
+    var wasDone = b.r(sBefore, dBefore);
+    var isDone  = b.r(sAfter,  dAfter);
+    if (!wasDone && isDone) newOnes.push(b);
+  });
+  return newOnes;
+}
+
+// ── CLASSEMENT ANONYME ────────────────────────────────────
+// Génère des noms anonymes déterministes par hash d'ID
+var ANON_NAMES = ['Élève A','Élève B','Élève C','Élève D','Élève E','Élève F','Élève G','Élève H'];
+var ANON_COLORS = ['#5b4fcf','#2dbd8f','#f0614a','#f5a623','#9b6fe8','#3b9edd','#e84393','#00875a'];
+function getAnonName(sid) {
+  var h = 0;
+  for (var i = 0; i < sid.length; i++) h = (h * 31 + sid.charCodeAt(i)) & 0xffff;
+  return ANON_NAMES[h % ANON_NAMES.length];
+}
+function getAnonColor(sid) {
+  var h = 0;
+  for (var i = 0; i < sid.length; i++) h = (h * 17 + sid.charCodeAt(i)) & 0xffff;
+  return ANON_COLORS[h % ANON_COLORS.length];
+}
+
+function getRanking() {
+  var sts = LS.sts();
+  var myUid = (typeof uid !== 'undefined') ? uid : null;
+  var list = sts.map(function(st) {
+    var d = LS.sd(st.id) || blank(st.id);
+    return { id: st.id, xp: getXPv2(d), wm: gStats(d).wm };
+  }).sort(function(a,b) { return b.xp - a.xp; });
+
+  // Top 3 + position de l'élève courant
+  var top3 = list.slice(0, 3);
+  var myPos = list.findIndex(function(x) { return x.id === myUid; });
+  return { top3: top3, myPos: myPos, total: list.length, myUid: myUid };
+}
+
+// ── CÉLÉBRATION ───────────────────────────────────────────
+function launchCelebration(minsAdded, dBefore, dAfter) {
+  var sBefore = gStats(dBefore), sAfter = gStats(dAfter);
+  var xpBefore = getXPv2(dBefore), xpAfter = getXPv2(dAfter);
+  var gained = xpAfter - xpBefore;
+  var streakBonus = sBefore.st >= 7;
+  var newBadges = getNewBadges(dBefore, dAfter);
+  var lvlBefore = getCurrentLevel(xpBefore);
+  var lvlAfter  = getCurrentLevel(xpAfter);
+  var levelUp   = lvlAfter.min > lvlBefore.min;
+
+  // Confettis si badge ou level up
+  if (newBadges.length > 0 || levelUp) {
+    launchConfetti(levelUp ? 60 : 30);
+  }
+
+  // Construire la carte
+  var el = document.getElementById('gamiCelebration');
+  if (!el) return;
+  el.classList.add('on');
+
+  var pctBefore = xpBefore > 0 ? Math.min(100, Math.round((xpBefore - lvlAfter.min) / Math.max(1, (LEVELS[Math.min(LEVELS.indexOf(lvlAfter)+1, LEVELS.length-1)].min - lvlAfter.min)) * 100)) : 0;
+  var pctAfter  = Math.min(100, Math.round((xpAfter - lvlAfter.min) / Math.max(1, (LEVELS[Math.min(LEVELS.indexOf(lvlAfter)+1, LEVELS.length-1)].min - lvlAfter.min)) * 100));
+
+  var badgesHtml = '';
+  newBadges.forEach(function(b, i) {
+    badgesHtml += '<div class="gami-celeb-badge" style="animation-delay:'+(i*120)+'ms">'+b.ico+' '+b.n+'</div>';
+  });
+  if (levelUp) {
+    badgesHtml += '<div class="gami-celeb-badge" style="animation-delay:'+(newBadges.length*120)+'ms;background:linear-gradient(135deg,rgba(245,166,35,.3),rgba(240,97,74,.3));border-color:rgba(245,166,35,.5)">'+lvlAfter.ico+' Niveau '+lvlAfter.name+' !</div>';
+  }
+
+  var streakHtml = '';
+  if (sAfter.st > 0) {
+    streakHtml = '<div class="gami-celeb-streak">'
+      + (sAfter.st >= 7 ? '⚡ Bonus ×1.15 actif — ' : '')
+      + '🔥 <strong>'+sAfter.st+' jour'+(sAfter.st>1?'s':'')+' de suite</strong>'
+      + (sAfter.st >= 3 ? ' · Tu es en feu !' : ' · Continue !')
+      + '</div>';
+  }
+
+  var card = document.getElementById('gamiCelebCard');
+  card.innerHTML = ''
+    + '<div class="gami-celeb-xp">+'+gained+' XP</div>'
+    + '<div class="gami-celeb-sub">'+minsAdded+' min · '+(gained>0?'bien joué':'continue'+(sAfter.st>0?' la série':''))+'</div>'
+    + (badgesHtml ? '<div class="gami-celeb-badges">'+badgesHtml+'</div>' : '')
+    + streakHtml
+    + '<div class="gami-xp-bar-wrap"><div class="gami-xp-bar-fill" id="gamiXpFill" style="width:'+pctBefore+'%"></div></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+    + '<span style="font-size:.64rem;color:rgba(255,255,255,.45);">'+lvlAfter.ico+' '+lvlAfter.name+'</span>'
+    + '<span style="font-size:.64rem;color:rgba(155,111,232,.8);">'+xpAfter+' XP</span>'
+    + '</div>'
+    + '<button class="gami-celeb-close" onclick="gamiCloseCelebration()">Super, continuons ! →</button>';
+
+  // Animer l'apparition + barre XP
+  setTimeout(function() {
+    card.classList.add('visible');
+    setTimeout(function() {
+      var fill = document.getElementById('gamiXpFill');
+      if (fill) fill.style.width = pctAfter + '%';
+    }, 600);
+  }, 50);
+}
+
+function gamiCloseCelebration() {
+  var card = document.getElementById('gamiCelebCard');
+  if (card) { card.classList.remove('visible'); }
+  setTimeout(function() {
+    var el = document.getElementById('gamiCelebration');
+    if (el) el.classList.remove('on');
+  }, 400);
+}
+window.gamiCloseCelebration = gamiCloseCelebration;
+
+// ── CONFETTIS ─────────────────────────────────────────────
+function launchConfetti(count) {
+  var colors = ['#5b4fcf','#9b6fe8','#f5a623','#2dbd8f','#f0614a','#3b9edd','#ff6b9d','#fbbf24'];
+  for (var i = 0; i < (count||30); i++) {
+    (function(delay) {
+      setTimeout(function() {
+        var el = document.createElement('div');
+        el.className = 'gami-confetti';
+        el.style.left = Math.random()*100 + 'vw';
+        el.style.top = '0';
+        el.style.background = colors[Math.floor(Math.random()*colors.length)];
+        el.style.animationDuration = (1.2 + Math.random()*1.8) + 's';
+        el.style.animationDelay = '0s';
+        el.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
+        el.style.width = (5 + Math.random()*7) + 'px';
+        el.style.height = (5 + Math.random()*7) + 'px';
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 3000);
+      }, delay);
+    })(i * 40);
+  }
+}
+
+// ── DÉFIS PAGE (remplace defisPage) ───────────────────────
+function defisPageV2(el) {
+  var d = LS.sd(uid) || blank(uid);
+  var s = gStats(d);
+  var xp = getXPv2(d);
+  var lvl = getCurrentLevel(xp);
+  var nextLvl = LEVELS[Math.min(LEVELS.indexOf(lvl)+1, LEVELS.length-1)];
+  var lvlPct = nextLvl === lvl ? 100 : Math.round((xp-lvl.min)/(nextLvl.min-lvl.min)*100);
+  var defis = getDailyDefis(d);
+  var today = tday();
+  var bonusActive = s.st >= 7;
+
+  // Header niveau
+  var h = '<div style="margin-bottom:14px;">'
+    + '<div class="pt">Défis</div>'
+    + '<div class="ps" style="margin-bottom:0;">Chaque journée compte</div>'
+    + '</div>';
+
+  // Niveau + streak côte à côte
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">';
+
+  // Niveau
+  var circ = 2*Math.PI*30;
+  h += '<div class="card" style="display:flex;flex-direction:column;align-items:center;padding:14px 10px;gap:6px;">'
+    + '<div class="gami-lvl-ring" style="width:68px;height:68px;">'
+    + '<svg width="68" height="68" viewBox="0 0 68 68">'
+    + '<circle cx="34" cy="34" r="30" fill="none" stroke="var(--border)" stroke-width="5"/>'
+    + '<circle cx="34" cy="34" r="30" fill="none" stroke="'+lvl.color+'" stroke-width="5"'
+    + ' stroke-dasharray="'+circ+'" stroke-dashoffset="'+(circ-circ*lvlPct/100)+'"'
+    + ' stroke-linecap="round" transform="rotate(-90 34 34)"/>'
+    + '</svg>'
+    + '<div class="gami-lvl-ring-txt">'
+    + '<span style="font-size:1.3rem;line-height:1;">'+lvl.ico+'</span>'
+    + '</div></div>'
+    + '<div style="text-align:center;">'
+    + '<div style="font-size:.76rem;font-weight:800;color:var(--text);">'+lvl.name+'</div>'
+    + '<div style="font-size:.62rem;color:var(--muted);">'+xp+' XP</div>'
+    + (lvl.next ? '<div style="font-size:.58rem;color:var(--muted);margin-top:1px;">→ '+lvl.next+' ('+nextLvl.min+')</div>' : '')
+    + '</div></div>';
+
+  // Streak
+  var streakColor = s.st >= 7 ? '#f5a623' : s.st >= 3 ? '#f0614a' : s.st >= 1 ? '#9b6fe8' : '#9ca3af';
+  h += '<div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 10px;gap:6px;">'
+    + '<div style="font-size:2.8rem;line-height:1;'+(s.st>0?'animation:gamiFlicker 1.8s ease-in-out infinite':'')+'">🔥</div>'
+    + '<div style="font-family:Lora,serif;font-size:2rem;font-weight:600;color:'+streakColor+';line-height:1;">'+s.st+'</div>'
+    + '<div style="font-size:.7rem;font-weight:800;color:'+streakColor+';">jour'+(s.st>1?'s':'')+' de suite</div>'
+    + (bonusActive
+      ? '<div class="gami-bonus-tag">⚡ Bonus ×1.15 actif</div>'
+      : s.st>0 ? '<div style="font-size:.58rem;color:var(--muted);text-align:center;">À '+(7-s.st)+'j du bonus !</div>' : '<div style="font-size:.58rem;color:var(--muted);">Commence aujourd\'hui !</div>')
+    + '</div>';
+  h += '</div>'; // grid
+
+  // Défis du jour
+  h += '<div style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">'
+    + '<div class="sl">DÉFIS DU JOUR</div>'
+    + '<div class="gami-refresh-tag">↺ Renouvelés demain</div>'
+    + '</div>';
+
+  defis.forEach(function(defi) {
+    var goal = typeof defi.m === 'function' ? defi.m(d) : defi.m;
+    var val   = defi.v(s, d);
+    var done  = defi.check(s, d);
+    var pct   = Math.round(val/Math.max(goal,1)*100);
+    var color = done ? 'var(--mint)' : defi.isWeek ? 'var(--ind)' : 'var(--vio)';
+
+    h += '<div class="gami-defi-card'+(done?' done':'')+'">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">'
+      + '<span style="font-size:1.3rem;">'+defi.ico+'</span>'
+      + '<div style="flex:1;">'
+      + '<div style="font-size:.84rem;font-weight:800;color:var(--text);">'+defi.t+'</div>'
+      + '<div style="font-size:.68rem;color:var(--muted);">'+defi.desc+'</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">'
+      + '<div class="gami-defi-xp-tag">+'+defi.xp+' XP</div>'
+      + (defi.isWeek ? '<div style="font-size:.55rem;color:var(--muted);">semaine</div>' : '')
+      + '</div></div>'
+      + (done
+        ? '<div style="font-size:.72rem;font-weight:700;color:var(--mint);margin-top:4px;">✓ Accompli !</div>'
+        : '<div class="gami-defi-progress"><div class="gami-defi-progress-fill" style="width:'+pct+'%;background:'+color+';"></div></div>')
+      + '</div>';
+  });
+
+  el.innerHTML = h;
+}
+
+// ── CLASSEMENT PAGE (nouvelle page) ───────────────────────
+function classementPage(el) {
+  var rank = getRanking();
+  var myUid = rank.myUid;
+  var medals = ['🥇','🥈','🥉'];
+  var myD = LS.sd(myUid) || blank(myUid);
+  var myXP = getXPv2(myD);
+  var maxXP = rank.top3.length > 0 ? Math.max(rank.top3[0].xp, 1) : 1;
+
+  var h = '<div style="margin-bottom:14px;">'
+    + '<div class="pt">Classement</div>'
+    + '<div class="ps" style="margin-bottom:0;">Top 3 de ta classe · Noms anonymisés</div>'
+    + '</div>';
+
+  if (rank.top3.length === 0) {
+    h += '<div class="al ali">Pas encore d\'autres élèves dans ta classe.</div>';
+    el.innerHTML = h;
+    return;
+  }
+
+  h += '<div class="gami-rank-card">';
+  rank.top3.forEach(function(item, i) {
+    var isMe = item.id === myUid;
+    var anonName = isMe ? 'Toi' : getAnonName(item.id);
+    var color = isMe ? 'var(--ind)' : getAnonColor(item.id);
+    var pct = Math.round(item.xp / maxXP * 100);
+    h += '<div class="gami-rank-item'+(isMe?' me':'')+'">'
+      + '<div class="gami-rank-medal">'+medals[i]+'</div>'
+      + '<div class="gami-rank-avatar" style="background:'+color+';">'+anonName[0]+'</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:.82rem;font-weight:800;color:var(--text);">'+anonName+(isMe?' <span style="font-size:.62rem;color:var(--ind);font-weight:700;">(toi)</span>':'')+'</div>'
+      + '<div class="gami-rank-bar"><div class="gami-rank-bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>'
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;">'
+      + '<div style="font-size:.82rem;font-weight:900;color:'+color+';">'+item.xp+'</div>'
+      + '<div style="font-size:.58rem;color:var(--muted);">XP</div>'
+      + '</div></div>';
+  });
+  h += '</div>';
+
+  // Position de l'élève si hors top 3
+  if (rank.myPos >= 3) {
+    h += '<div class="al ali" style="margin-top:8px;">'
+      + '📍 Tu es en <strong>'+(rank.myPos+1)+'ème position</strong> sur '+rank.total+' élèves avec '+myXP+' XP'
+      + '</div>';
+  } else if (rank.myPos === 0) {
+    h += '<div class="al alo" style="margin-top:8px;">🏆 Tu es en tête de la classe !</div>';
+  }
+
+  // Encouragement
+  h += '<div class="card" style="margin-top:10px;text-align:center;">'
+    + '<div style="font-size:.78rem;color:var(--muted);line-height:1.6;">'
+    + 'Les noms sont anonymes pour protéger la vie privée de chacun.<br>'
+    + '<strong style="color:var(--text);">Travaille pour toi, pas pour le rang.</strong>'
+    + '</div></div>';
+
+  el.innerHTML = h;
+}
+
+// ── BADGES PAGE AMÉLIORÉE ─────────────────────────────────
+function badgesPageV2(el) {
+  var d = LS.sd(uid) || blank(uid);
+  var s = gStats(d);
+  var done = BADGES_EXT.filter(function(b){return b.r(s,d);});
+
+  var h = '<div style="margin-bottom:14px;">'
+    + '<div class="pt">Badges</div>'
+    + '<div class="ps" style="margin-bottom:0;">'+done.length+' / '+BADGES_EXT.length+' débloqués</div>'
+    + '</div>';
+
+  // Barre de complétion
+  var pct = Math.round(done.length/BADGES_EXT.length*100);
+  h += '<div style="background:var(--white);border:1.5px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:12px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
+    + '<span style="font-size:.72rem;font-weight:800;color:var(--text);">Collection</span>'
+    + '<span style="font-size:.72rem;font-weight:800;color:var(--ind);">'+pct+'%</span>'
+    + '</div>'
+    + '<div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;">'
+    + '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--ind),var(--vio));border-radius:3px;transition:width .8s ease;"></div>'
+    + '</div></div>';
+
+  h += '<div class="ga">';
+  BADGES_EXT.forEach(function(b) {
+    var on = b.r(s, d);
+    h += '<div class="bc'+(on?' on':'')+'">'
+      + '<div class="bi" style="'+(on?'filter:none':'')+'">'+b.ico+'</div>'
+      + '<div class="bn">'+b.n+'</div>'
+      + '<div style="font-size:.58rem;color:var(--muted);margin-top:2px;line-height:1.3;">'+b.d+'</div>'
+      + '</div>';
+  });
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+// ── PATCH gsStop — DÉCLENCHE LA CÉLÉBRATION ───────────────
+var _origGsStop2 = typeof gsStop === 'function' ? gsStop : null;
+gsStop = function() {
+  var mins = Math.floor(gsSec / 60);
+  if (mins > 0 && uid) {
+    // Snapshot avant
+    var dBefore = JSON.parse(JSON.stringify(LS.sd(uid) || blank(uid)));
+    // Laisser l'original sauvegarder
+    if (_origGsStop2) _origGsStop2();
+    // Snapshot après
+    var dAfter = LS.sd(uid) || blank(uid);
+    // Lancer la célébration avec léger délai
+    setTimeout(function() {
+      launchCelebration(mins, dBefore, dAfter);
+    }, 400);
+  } else {
+    if (_origGsStop2) _origGsStop2();
+  }
+};
+
+// Pareil pour addManT
+var _origAddManT2 = typeof addManT === 'function' ? addManT : null;
+addManT = function() {
+  var mins = parseInt((document.getElementById('manMin')||{value:'0'}).value)||0;
+  if (mins > 0 && uid) {
+    var dBefore = JSON.parse(JSON.stringify(LS.sd(uid) || blank(uid)));
+    if (_origAddManT2) _origAddManT2();
+    var dAfter = LS.sd(uid) || blank(uid);
+    setTimeout(function() {
+      launchCelebration(mins, dBefore, dAfter);
+    }, 400);
+  } else {
+    if (_origAddManT2) _origAddManT2();
+  }
+};
+
+// ── PATCH rPage — injecte les nouvelles pages ─────────────
+var _origRPage = typeof rPage === 'function' ? rPage : null;
+rPage = function(r, i) {
+  _curIdx = i;
+  var main = document.getElementById('aM');
+  main.innerHTML = '';
+  var p = document.createElement('div');
+  p.className = 'pg on';
+  main.appendChild(p);
+  var meta = (typeof TAB_META !== 'undefined') ? TAB_META[r] : null;
+  if (meta && meta[i]) {
+    var tbPage = document.getElementById('tbPage');
+    if (tbPage) tbPage.textContent = meta[i].ico + ' ' + meta[i].lbl;
+  }
+  if (typeof buildNavGrid === 'function') buildNavGrid();
+
+  // Routing personnalisé
+  if (r === 'eleve') {
+    var elevPages = [eleveDash, sessionGuidee, defisPageV2, chestsPage,
+      avatarPage, weeklyRecapWithHistory, badgesPageV2, classementPage,
+      outilsPage, function(el){ msgPageEleve(el, uid); }, aidePage];
+    if (elevPages[i]) { elevPages[i](p); return; }
+  }
+  // Fallback original
+  if (_origRPage) _origRPage(r, i);
+};
+
+// ── PATCH TAB_META — ajoute l'onglet Classement ───────────
+// On observe que TAB_META.eleve est défini dans le fichier principal
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    if (typeof TAB_META !== 'undefined' && TAB_META.eleve) {
+      // Injecter Classement entre Badges et Outils
+      var hasClassement = TAB_META.eleve.some(function(t){ return t.lbl === 'Classement'; });
+      if (!hasClassement) {
+        // Trouver l'index des Badges
+        var badgesIdx = TAB_META.eleve.findIndex(function(t){ return t.lbl === 'Badges'; });
+        if (badgesIdx >= 0) {
+          TAB_META.eleve.splice(badgesIdx + 1, 0, {ico:'🏅', lbl:'Classement', col:'nc-amb'});
+        } else {
+          TAB_META.eleve.push({ico:'🏅', lbl:'Classement', col:'nc-amb'});
+        }
+      }
+    }
+  }, 200);
+});
+
+// ── STREAK BADGE DANS ELEVÉ DASH ─────────────────────────
+// Patch eleveDash pour afficher le streak badge en haut
+var _origEleveDash = typeof eleveDash === 'function' ? eleveDash : null;
+eleveDash = function(el) {
+  if (_origEleveDash) _origEleveDash(el);
+  // Injecter le streak badge dans le hero si le streak > 0
+  var d = LS.sd(uid) || blank(uid);
+  var s = gStats(d);
+  if (s.st > 0) {
+    var hero = el.querySelector('.dash-hero');
+    if (hero) {
+      var badge = document.createElement('div');
+      badge.style.cssText = 'display:flex;justify-content:flex-end;margin-top:8px;';
+      var cold = s.st < 1;
+      badge.innerHTML = '<div class="gami-streak-badge'+(cold?' cold':'')+'" onclick="rPage(\'eleve\',2)" title="Voir les défis">'
+        + '<span class="gami-streak-fire">🔥</span>'
+        + '<span>'+s.st+'j</span>'
+        + (s.st >= 7 ? '<span class="gami-bonus-tag" style="margin-left:3px;">×1.15</span>' : '')
+        + '</div>';
+      hero.appendChild(badge);
+    }
+  }
+};
+
+// ── INJECTER LE DOM DE CÉLÉBRATION ───────────────────────
+function injectCelebrationDOM() {
+  if (document.getElementById('gamiCelebration')) return;
+  var el = document.createElement('div');
+  el.id = 'gamiCelebration';
+  el.innerHTML = '<div id="gamiCelebCard"></div>';
+  document.body.appendChild(el);
+}
+
+if (document.readyState !== 'loading') {
+  injectCelebrationDOM();
+} else {
+  document.addEventListener('DOMContentLoaded', injectCelebrationDOM);
+}
+
+console.log('[Maestro] Gamification v2 chargé ✓ — célébrations, streak, défis, classement anonyme');
+
+})();
+</script>
+
+<!-- FIN PATCH GAMIFICATION v2 -->
+<!-- ════════════════════════════════════════════════════════════════
+     MAESTRO — PATCH COMBATS HEBDOMADAIRES v1
+     Coller juste avant </body>, après tous les autres patches.
+
+     Ce patch ajoute :
+     ÉLÈVE : onglet ⚔ Combat — adversaire anonyme, score semaine,
+             messages pré-définis + texte libre, défi manuel
+     PROF  : stats défis par élève, gestion combats (activer/désactiver,
+             choisir paires, modérer messages)
+     FIREBASE : combats/{semaine}/{combatId}, combat_msgs/{combatId},
+                settings/combats_enabled, settings/combat_pairs
+     ════════════════════════════════════════════════════════════════ -->
+
+<style id="combat-css">
+/* ── COMBAT GÉNÉRAL ─────────────────────────────────────── */
+.cb-hero {
+  background: linear-gradient(145deg, #0a0818, #1a1040, #0d0d25);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+  color: white;
+}
+.cb-hero::before {
+  content: '⚔';
+  position: absolute;
+  font-size: 8rem;
+  right: -10px;
+  bottom: -20px;
+  opacity: .04;
+  line-height: 1;
+}
+.cb-vs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  justify-content: center;
+  margin: 14px 0;
+}
+.cb-fighter {
+  flex: 1;
+  text-align: center;
+  padding: 0 8px;
+}
+.cb-fighter-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: white;
+  margin: 0 auto 6px;
+  border: 2px solid rgba(255,255,255,.15);
+}
+.cb-fighter-name {
+  font-size: .76rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 2px;
+}
+.cb-fighter-score {
+  font-family: 'Lora', serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.cb-fighter-unit {
+  font-size: .58rem;
+  opacity: .6;
+  margin-top: 1px;
+}
+.cb-vs-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.12);
+  border: 1.5px solid rgba(255,255,255,.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+  font-weight: 900;
+  color: rgba(255,255,255,.8);
+  flex-shrink: 0;
+}
+.cb-bar-wrap {
+  height: 8px;
+  background: rgba(255,255,255,.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0 4px;
+  display: flex;
+}
+.cb-bar-me {
+  height: 100%;
+  border-radius: 4px 0 0 4px;
+  transition: width .8s cubic-bezier(.4,0,.2,1);
+}
+.cb-bar-opp {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  transition: width .8s cubic-bezier(.4,0,.2,1);
+}
+.cb-status {
+  text-align: center;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: inline-block;
+  margin: 0 auto;
+}
+.cb-status.winning  { background: rgba(45,189,143,.25); color: #2dbd8f; }
+.cb-status.losing   { background: rgba(240,97,74,.25);  color: #f0614a; }
+.cb-status.tied     { background: rgba(245,166,35,.25); color: #f5a623; }
+.cb-status.nocontest{ background: rgba(155,111,232,.2); color: #9b6fe8; }
+
+/* Messages combat */
+.cb-msg-thread {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  scrollbar-width: thin;
+}
+.cb-msg-bubble {
+  border-radius: 12px;
+  padding: 7px 10px;
+  max-width: 82%;
+  font-size: .78rem;
+  line-height: 1.5;
+}
+.cb-msg-me  { background: var(--ind); color: white; border-radius: 12px 12px 0 12px; align-self: flex-end; }
+.cb-msg-opp { background: var(--indl); color: var(--text); border-radius: 12px 12px 12px 0; border: 1.5px solid var(--indm); }
+.cb-msg-sys { background: rgba(0,0,0,.05); color: var(--muted); border-radius: 8px; font-size: .68rem; align-self: center; padding: 4px 10px; font-style: italic; }
+body.dark .cb-msg-sys { background: rgba(255,255,255,.05); }
+.cb-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.cb-preset-btn {
+  background: var(--indl);
+  border: 1px solid var(--indm);
+  color: var(--ind);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: .7rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  transition: all .15s;
+}
+.cb-preset-btn:hover { background: var(--ind); color: white; }
+
+/* ── PROF STATS DÉFIS ───────────────────────────────────── */
+.cb-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cb-stat-row:last-child { border-bottom: none; }
+.cb-defi-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cb-pill {
+  font-size: .62rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.cb-pill-green { background: var(--mintl); color: var(--mint); }
+.cb-pill-gray  { background: var(--bg);    color: var(--muted); }
+
+/* ── TOGGLE SWITCH ──────────────────────────────────────── */
+.cb-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.cb-toggle {
+  width: 44px;
+  height: 24px;
+  background: var(--border);
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  transition: background .2s;
+  border: none;
+  flex-shrink: 0;
+}
+.cb-toggle::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  top: 3px;
+  left: 3px;
+  transition: transform .2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.cb-toggle.on { background: var(--mint); }
+.cb-toggle.on::after { transform: translateX(20px); }
+
+/* ── PAIRES PROF ────────────────────────────────────────── */
+.cb-pair-card {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cb-pair-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .68rem;
+  font-weight: 900;
+  color: white;
+  flex-shrink: 0;
+}
+
+/* ── MODÉRATION MESSAGES ────────────────────────────────── */
+.cb-mod-msg {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: .76rem;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.cb-mod-del {
+  background: var(--corall);
+  border: 1px solid #ffc5bd;
+  color: var(--coral);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: .65rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: 'Nunito', sans-serif;
+}
+
+/* ── SEMAINE ────────────────────────────────────────────── */
+.cb-week-tag {
+  font-size: .6rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+</style>
+
+<script>
+(function(){
+'use strict';
+
+// ── HELPERS SEMAINE ────────────────────────────────────────
+function getWeekKey() {
+  var d = new Date();
+  var day = d.getDay() === 0 ? 6 : d.getDay() - 1; // lundi = 0
+  var mon = new Date(d); mon.setDate(d.getDate() - day); mon.setHours(0,0,0,0);
+  return mon.toISOString().slice(0,10).replace(/-/g,'');
+}
+function getWeekLabel() {
+  var d = new Date();
+  var day = d.getDay() === 0 ? 6 : d.getDay() - 1;
+  var mon = new Date(d); mon.setDate(d.getDate() - day);
+  var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  var fmt = function(dt) { return dt.getDate()+'/'+(dt.getMonth()+1); };
+  return 'Semaine du '+fmt(mon)+' au '+fmt(sun);
+}
+
+// ── FIREBASE PATHS ─────────────────────────────────────────
+var FB = {
+  combatsEnabled: function()   { return 'settings/combats_enabled'; },
+  combatPairs:    function(wk) { return 'combats/'+wk+'/pairs'; },
+  combatMsgs:     function(id) { return 'combat_msgs/'+id; },
+  profId:         function()   { return (typeof uid !== 'undefined') ? uid : null; },
+};
+
+// ── ÉTAT LOCAL COMBAT ──────────────────────────────────────
+var CB = {
+  enabled:  true,
+  myMatch:  null,   // {id, opponentId, meScore, oppScore, startedAt}
+  msgs:     [],
+  loading:  false,
+};
+
+// ── LECTURE FIREBASE ───────────────────────────────────────
+function cbEnabled(cb) {
+  if (!window.fbDb) { cb(true); return; }
+  fbDb.ref(FB.combatsEnabled()).once('value', function(s) {
+    cb(s.val() !== false); // true par défaut
+  }).catch(function(){ cb(true); });
+}
+
+function cbSetEnabled(val) {
+  if (!window.fbDb) return;
+  fbDb.ref(FB.combatsEnabled()).set(val).catch(function(){});
+}
+
+function cbLoadMyMatch(uid2, cb) {
+  if (!window.fbDb || !uid2) { cb(null); return; }
+  var wk = getWeekKey();
+  fbDb.ref(FB.combatPairs(wk)).once('value', function(snap) {
+    var pairs = snap.val() || {};
+    var match = null;
+    Object.keys(pairs).forEach(function(id) {
+      var p = pairs[id];
+      if (p.a === uid2 || p.b === uid2) {
+        var opponentId = p.a === uid2 ? p.b : p.a;
+        var meScore  = p.a === uid2 ? (p.scoreA||0) : (p.scoreB||0);
+        var oppScore = p.a === uid2 ? (p.scoreB||0) : (p.scoreA||0);
+        match = { id: id, opponentId: opponentId, meScore: meScore, oppScore: oppScore,
+                  pairData: p, amA: p.a === uid2 };
+      }
+    });
+    cb(match);
+  }).catch(function(){ cb(null); });
+}
+
+function cbLoadMsgs(matchId, cb) {
+  if (!window.fbDb || !matchId) { cb([]); return; }
+  fbDb.ref(FB.combatMsgs(matchId)).once('value', function(snap) {
+    var v = snap.val();
+    cb(v && Array.isArray(v) ? v : (v ? Object.values(v) : []));
+  }).catch(function(){ cb([]); });
+}
+
+function cbSendMsg(matchId, fromUid, text) {
+  if (!window.fbDb || !matchId || !text.trim()) return;
+  fbDb.ref(FB.combatMsgs(matchId)).once('value', function(snap) {
+    var msgs = snap.val();
+    msgs = msgs && Array.isArray(msgs) ? msgs : (msgs ? Object.values(msgs) : []);
+    msgs.push({ from: fromUid, text: text.trim(), ts: Date.now() });
+    fbDb.ref(FB.combatMsgs(matchId)).set(msgs).catch(function(){});
+  }).catch(function(){});
+}
+
+function cbDeleteMsg(matchId, idx, cb) {
+  if (!window.fbDb || !matchId) return;
+  fbDb.ref(FB.combatMsgs(matchId)).once('value', function(snap) {
+    var msgs = snap.val();
+    msgs = msgs && Array.isArray(msgs) ? msgs : (msgs ? Object.values(msgs) : []);
+    msgs.splice(idx, 1);
+    fbDb.ref(FB.combatMsgs(matchId)).set(msgs).then(cb).catch(cb);
+  }).catch(function(){});
+}
+
+function cbUpdateScore(matchId, amA, score) {
+  if (!window.fbDb || !matchId) return;
+  var wk = getWeekKey();
+  var field = amA ? 'scoreA' : 'scoreB';
+  fbDb.ref(FB.combatPairs(wk)+'/'+matchId+'/'+field).set(score).catch(function(){});
+}
+
+function cbCreateMatch(uidA, uidB, profUid) {
+  if (!window.fbDb) return;
+  var wk = getWeekKey();
+  var id = 'cb_'+wk+'_'+(Math.random().toString(36).slice(2,8));
+  var pair = { a: uidA, b: uidB, scoreA: 0, scoreB: 0, createdAt: Date.now(), createdBy: profUid||'auto' };
+  fbDb.ref(FB.combatPairs(wk)+'/'+id).set(pair).catch(function(){});
+}
+
+function cbDeleteMatch(matchId) {
+  if (!window.fbDb) return;
+  var wk = getWeekKey();
+  fbDb.ref(FB.combatPairs(wk)+'/'+matchId).remove().catch(function(){});
+  fbDb.ref(FB.combatMsgs(matchId)).remove().catch(function(){});
+}
+
+function cbAutoMatch(profUid) {
+  // Match automatique aléatoire parmi les élèves non déjà appairés
+  if (!window.fbDb) return;
+  var wk = getWeekKey();
+  var sts = LS.sts();
+  if (sts.length < 2) { toast('Pas assez d\'élèves pour un combat.'); return; }
+
+  fbDb.ref(FB.combatPairs(wk)).once('value', function(snap) {
+    var pairs = snap.val() || {};
+    var taken = new Set();
+    Object.values(pairs).forEach(function(p){ taken.add(p.a); taken.add(p.b); });
+    var avail = sts.filter(function(s){ return !taken.has(s.id); });
+    // Mélanger
+    for (var i = avail.length-1; i > 0; i--) {
+      var j = Math.floor(Math.random()*(i+1));
+      var tmp = avail[i]; avail[i] = avail[j]; avail[j] = tmp;
+    }
+    var created = 0;
+    for (var k = 0; k+1 < avail.length; k += 2) {
+      cbCreateMatch(avail[k].id, avail[k+1].id, profUid);
+      created++;
+    }
+    toast(created+' combat'+(created>1?'s':'')+' créé'+(created>1?'s':'')+(avail.length%2===1?' · 1 élève sans adversaire':''));
+  }).catch(function(){});
+}
+
+function cbSendChallenge(fromUid, toUid) {
+  // Un élève défie un autre — crée un match si pas déjà en cours
+  var wk = getWeekKey();
+  if (!window.fbDb) return;
+  fbDb.ref(FB.combatPairs(wk)).once('value', function(snap){
+    var pairs = snap.val() || {};
+    var already = Object.values(pairs).some(function(p){
+      return (p.a===fromUid&&p.b===toUid)||(p.a===toUid&&p.b===fromUid);
+    });
+    if (already) { toast('Défi déjà en cours avec cet élève.'); return; }
+    cbCreateMatch(fromUid, toUid, 'challenge');
+    toast('Défi envoyé ! 🗡️');
+  }).catch(function(){});
+}
+
+// ── PAGE COMBAT ÉLÈVE ──────────────────────────────────────
+var PRESET_MSGS = [
+  '💪 Bonne chance !',
+  '🎵 J\'ai bien travaillé cette semaine !',
+  '🔥 Tu ne peux pas me battre !',
+  '🤝 Beau combat !',
+  '🎶 Allez, on joue !',
+  '😅 C\'est serré...',
+];
+
+function combatPageEleve(el) {
+  var myUid = (typeof uid !== 'undefined') ? uid : null;
+  if (!myUid) { el.innerHTML = '<div class="al alw">Non connecté.</div>'; return; }
+
+  el.innerHTML = '<div style="text-align:center;padding:2rem;"><div style="animation:spin 1s linear infinite;width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--ind);border-radius:50%;margin:0 auto"></div><p style="color:var(--muted);margin-top:10px;font-size:.8rem;">Chargement...</p></div>';
+
+  cbEnabled(function(enabled) {
+    if (!enabled) {
+      el.innerHTML = '<div style="text-align:center;padding:3rem 1.5rem;">'
+        + '<div style="font-size:2.5rem;margin-bottom:12px;">⚔️</div>'
+        + '<div style="font-family:Lora,serif;font-size:1.2rem;font-weight:600;color:var(--text);margin-bottom:6px;">Combats désactivés</div>'
+        + '<div style="font-size:.78rem;color:var(--muted);line-height:1.6;">Ton professeur n\'a pas activé<br>les combats pour l\'instant.</div>'
+        + '</div>';
+      return;
+    }
+
+    cbLoadMyMatch(myUid, function(match) {
+      if (!match) {
+        renderCombatNoMatch(el, myUid);
+        return;
+      }
+      // Mettre à jour le score en temps réel
+      var myD = LS.sd(myUid) || blank(myUid);
+      var myWm = gStats(myD).wm;
+      if (myWm !== (match.amA ? match.pairData.scoreA : match.pairData.scoreB)) {
+        cbUpdateScore(match.id, match.amA, myWm);
+        match.meScore = myWm;
+      }
+      cbLoadMsgs(match.id, function(msgs) {
+        renderCombatActive(el, match, msgs, myUid);
+      });
+    });
+  });
+}
+
+function renderCombatNoMatch(el, myUid) {
+  var sts = LS.sts();
+  var others = sts.filter(function(s){ return s.id !== myUid; });
+
+  var h = '<div style="margin-bottom:14px;"><div class="pt">⚔ Combat</div>'
+    + '<div class="ps" style="margin-bottom:0;">'+getWeekLabel()+'</div></div>';
+
+  h += '<div style="text-align:center;padding:2.5rem 1.5rem;background:linear-gradient(145deg,#0a0818,#1a1040);border-radius:18px;margin-bottom:14px;color:white;">'
+    + '<div style="font-size:2.5rem;margin-bottom:10px;">⚔️</div>'
+    + '<div style="font-family:Lora,serif;font-size:1.15rem;font-weight:600;margin-bottom:6px;">Aucun combat en cours</div>'
+    + '<div style="font-size:.75rem;opacity:.6;margin-bottom:16px;">Défie un camarade ou attends<br>que le professeur lance les combats.</div>'
+    + '</div>';
+
+  if (others.length > 0) {
+    h += '<div class="card"><div class="ct">🗡️ Défier un élève (anonyme)</div>'
+      + '<div style="font-size:.72rem;color:var(--muted);margin-bottom:10px;">Ton adversaire ne connaîtra pas ton identité.</div>'
+      + '<select id="cbChallengeTarget" style="width:100%;margin-bottom:10px;">'
+      + '<option value="">-- Choisir un adversaire --</option>';
+    others.forEach(function(s){
+      h += '<option value="'+s.id+'">Élève '+getAnonIdxForStudent(s.id, sts)+'</option>';
+    });
+    h += '</select>'
+      + '<button onclick="cbDoChallenge(\''+myUid+'\')" style="width:100%;background:var(--ind);border:none;color:white;border-radius:10px;padding:9px;cursor:pointer;font-weight:800;font-size:.82rem;font-family:Nunito,sans-serif;">Envoyer le défi ⚔️</button>'
+      + '</div>';
+  }
+  el.innerHTML = h;
+}
+
+function getAnonIdxForStudent(sid, sts) {
+  var idx = sts.findIndex(function(s){ return s.id === sid; });
+  return String.fromCharCode(65 + (idx % 26)); // A, B, C...
+}
+
+window.cbDoChallenge = function(myUid) {
+  var sel = document.getElementById('cbChallengeTarget');
+  if (!sel || !sel.value) { toast('Choisis un adversaire.'); return; }
+  cbSendChallenge(myUid, sel.value);
+  setTimeout(function(){ combatPageEleve(document.querySelector('.pg.on')); }, 800);
+};
+
+function renderCombatActive(el, match, msgs, myUid) {
+  var wk = getWeekKey();
+  var sts = LS.sts();
+  var me  = sts.find(function(s){ return s.id === myUid; }) || {id:myUid, name:'Moi', color:'#5b4fcf'};
+  var opp = sts.find(function(s){ return s.id === match.opponentId; }) || {id:match.opponentId, name:'?', color:'#9b6fe8'};
+
+  var meScore  = match.meScore  || 0;
+  var oppScore = match.oppScore || 0;
+  var total = meScore + oppScore || 1;
+  var mePct  = Math.round(meScore/total*100);
+  var oppPct = 100 - mePct;
+
+  var status = meScore > oppScore ? 'winning' : meScore < oppScore ? 'losing' : 'tied';
+  var statusTxt = meScore > oppScore ? '🟢 Tu mènes !' : meScore < oppScore ? '🔴 Tu es derrière' : '🟡 Égalité !';
+
+  var myColor  = me.color  || '#5b4fcf';
+  var oppColor = opp.color || '#9b6fe8';
+  var myIni    = 'Moi';
+  var oppIni   = 'Élève '+getAnonIdxForStudent(match.opponentId, sts);
+
+  var h = '<div style="margin-bottom:10px;"><div class="pt">⚔ Combat</div>'
+    + '<div class="ps" style="margin-bottom:0;">'+getWeekLabel()+'</div></div>';
+
+  // Hero combat
+  h += '<div class="cb-hero">'
+    + '<div class="cb-week-tag" style="color:rgba(255,255,255,.4);margin-bottom:0;">MINUTES CETTE SEMAINE</div>'
+    + '<div class="cb-vs">'
+    // Moi
+    + '<div class="cb-fighter">'
+    + '<div class="cb-fighter-avatar" style="background:'+myColor+'">MOI</div>'
+    + '<div class="cb-fighter-name">Moi</div>'
+    + '<div class="cb-fighter-score" style="color:'+myColor+'">'+meScore+'</div>'
+    + '<div class="cb-fighter-unit">minutes</div>'
+    + '</div>'
+    // VS
+    + '<div class="cb-vs-badge">VS</div>'
+    // Adversaire
+    + '<div class="cb-fighter">'
+    + '<div class="cb-fighter-avatar" style="background:'+oppColor+'">'+oppIni.slice(-1)+'</div>'
+    + '<div class="cb-fighter-name">'+oppIni+'</div>'
+    + '<div class="cb-fighter-score" style="color:'+oppColor+'">'+oppScore+'</div>'
+    + '<div class="cb-fighter-unit">minutes</div>'
+    + '</div>'
+    + '</div>'
+    // Barre
+    + '<div class="cb-bar-wrap">'
+    + '<div class="cb-bar-me" style="width:'+mePct+'%;background:'+myColor+';"></div>'
+    + '<div class="cb-bar-opp" style="width:'+oppPct+'%;background:'+oppColor+';"></div>'
+    + '</div>'
+    + '<div style="text-align:center;"><span class="cb-status '+status+'">'+statusTxt+'</span></div>'
+    + '</div>';
+
+  // Messages
+  h += '<div class="card" style="margin-bottom:10px;">'
+    + '<div class="ct" style="margin-bottom:6px;">💬 Messages</div>'
+    + '<div class="cb-preset-row">';
+  PRESET_MSGS.forEach(function(pm) {
+    h += '<button class="cb-preset-btn" onclick="cbSendPreset(\''+match.id+'\',\''+myUid+'\',this)">'+pm+'</button>';
+  });
+  h += '</div>';
+  h += '<div class="cb-msg-thread" id="cbMsgThread">';
+  msgs.forEach(function(m) {
+    var isMe = m.from === myUid;
+    h += '<div style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+'">'
+      + '<div class="cb-msg-bubble '+(isMe?'cb-msg-me':'cb-msg-opp')+'">'+escCb(m.text)+'</div>'
+      + '<div style="font-size:.58rem;color:var(--muted);margin-top:1px;">'+new Date(m.ts).toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'})+'</div>'
+      + '</div>';
+  });
+  if (!msgs.length) h += '<div class="cb-msg-sys">Aucun message pour l\'instant. Lance la conversation !</div>';
+  h += '</div>';
+  h += '<div style="display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--border);margin-top:4px;">'
+    + '<input id="cbMsgInput" placeholder="Message libre..." style="flex:1;border-radius:10px;padding:7px 10px;border:1.5px solid var(--border);font-family:Nunito,sans-serif;font-size:.8rem;background:var(--bg);color:var(--text);" maxlength="120">'
+    + '<button onclick="cbSendFree(\''+match.id+'\',\''+myUid+'\')" style="background:var(--ind);border:none;color:white;border-radius:10px;padding:7px 12px;cursor:pointer;font-size:.9rem;">→</button>'
+    + '</div>'
+    + '<div style="font-size:.58rem;color:var(--muted);margin-top:3px;">Messages visibles par ton professeur.</div>'
+    + '</div>';
+
+  el.innerHTML = h;
+  // Scroller en bas du thread
+  setTimeout(function(){
+    var t = document.getElementById('cbMsgThread');
+    if (t) t.scrollTop = t.scrollHeight;
+  }, 50);
+}
+
+window.cbSendPreset = function(matchId, fromUid, btn) {
+  var text = btn.textContent;
+  cbSendMsg(matchId, fromUid, text);
+  btn.style.background = 'var(--ind)'; btn.style.color = 'white';
+  setTimeout(function(){ btn.style.background=''; btn.style.color=''; }, 1000);
+  setTimeout(function(){ combatPageEleve(document.querySelector('.pg.on')); }, 600);
+};
+
+window.cbSendFree = function(matchId, fromUid) {
+  var inp = document.getElementById('cbMsgInput');
+  if (!inp || !inp.value.trim()) return;
+  cbSendMsg(matchId, fromUid, inp.value.trim());
+  inp.value = '';
+  setTimeout(function(){ combatPageEleve(document.querySelector('.pg.on')); }, 600);
+};
+
+function escCb(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── PAGE STATS DÉFIS PROF ──────────────────────────────────
+function profDefiStats(el) {
+  var sts = LS.sts();
+  var wk  = getWeekKey();
+
+  var h = '<div style="margin-bottom:14px;">'
+    + '<div class="pt">Défis & Combats</div>'
+    + '<div class="ps" style="margin-bottom:0;">'+getWeekLabel()+'</div>'
+    + '</div>';
+
+  // Toggle combats
+  h += '<div id="cbToggleWrap"></div>';
+
+  // Stats défis par élève
+  h += '<div class="tcard">'
+    + '<div class="ttitle">📊 Défis accomplis</div>'
+    + '<div class="tsub">Cette semaine</div>';
+
+  if (!sts.length) {
+    h += '<div style="font-size:.78rem;color:var(--muted);">Aucun élève.</div>';
+  } else {
+    sts.forEach(function(st) {
+      var d = LS.sd(st.id) || blank(st.id);
+      var s = gStats(d);
+      var defis = getDailyDefis ? getDailyDefis(d) : [];
+      var doneCount = defis.filter(function(df){
+        var sv = typeof df.v === 'function' ? df.v(s,d) : 0;
+        return df.check(s,d);
+      }).length;
+      var xp = typeof getXPv2 === 'function' ? getXPv2(d) : getXP(d);
+      var pct = defis.length > 0 ? Math.round(doneCount/defis.length*100) : 0;
+      h += '<div class="cb-stat-row">'
+        + makeAvatarIcon(st.id, 28, st.color, escCb(st.name[0]))
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:.8rem;font-weight:700;">'+escCb(st.name)+'</div>'
+        + '<div style="font-size:.65rem;color:var(--muted);">'+xp+' XP · '+s.wm+' min cette sem.</div>'
+        + '</div>'
+        + '<span class="cb-pill '+(doneCount===defis.length&&defis.length>0?'cb-pill-green':'cb-pill-gray')+'">'+doneCount+'/'+defis.length+'</span>'
+        + '</div>';
+    });
+  }
+  h += '</div>';
+
+  // Gestion combats
+  h += '<div class="tcard" id="cbPairsSection">'
+    + '<div class="ttitle">⚔ Combats de la semaine</div>'
+    + '<div class="tsub">Match automatique ou manuel</div>'
+    + '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;">'
+    + '<button onclick="cbProfAutoMatch()" style="background:var(--ind);border:none;color:white;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:.76rem;font-weight:800;font-family:Nunito,sans-serif;">🎲 Match auto</button>'
+    + '<button onclick="cbProfShowManual()" style="background:transparent;border:1.5px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 13px;cursor:pointer;font-size:.76rem;font-weight:700;font-family:Nunito,sans-serif;">✍️ Choisir les paires</button>'
+    + '</div>'
+    + '<div id="cbManualWrap" style="display:none;margin-bottom:10px;">'
+    + cbManualPairForm(sts)
+    + '</div>'
+    + '<div id="cbPairsList">Chargement...</div>'
+    + '</div>';
+
+  el.innerHTML = h;
+
+  // Charger le toggle
+  cbEnabled(function(enabled) {
+    var tw = document.getElementById('cbToggleWrap');
+    if (!tw) return;
+    tw.innerHTML = '<div class="cb-toggle-wrap">'
+      + '<button class="cb-toggle'+(enabled?' on':'')+'" id="cbToggleBtn" onclick="cbToggleFeature(this)"></button>'
+      + '<div>'
+      + '<div style="font-size:.82rem;font-weight:800;color:var(--text);">Combats hebdomadaires</div>'
+      + '<div style="font-size:.68rem;color:var(--muted);">'+(enabled?'Activés · Les élèves peuvent se battre':'Désactivés · Les élèves ne voient pas l\'onglet')+'</div>'
+      + '</div></div>';
+  });
+
+  // Charger les paires
+  cbLoadAllPairs(function(pairs) {
+    var pl = document.getElementById('cbPairsList');
+    if (!pl) return;
+    if (!pairs.length) { pl.innerHTML = '<div style="font-size:.76rem;color:var(--muted);">Aucun combat cette semaine.</div>'; return; }
+    var html = '';
+    pairs.forEach(function(p) {
+      var stA = sts.find(function(s){return s.id===p.a;})||{name:'?',color:'#9ca3af'};
+      var stB = sts.find(function(s){return s.id===p.b;})||{name:'?',color:'#9ca3af'};
+      html += '<div class="cb-pair-card">'
+        + '<div class="cb-pair-avatar" style="background:'+stA.color+'">'+escCb(stA.name[0])+'</div>'
+        + '<div style="flex:1;">'
+        + '<div style="font-size:.78rem;font-weight:800;">'+escCb(stA.name)+' <span style="color:var(--muted);font-weight:400;">vs</span> '+escCb(stB.name)+'</div>'
+        + '<div style="font-size:.65rem;color:var(--muted);">'+(p.scoreA||0)+' min vs '+(p.scoreB||0)+' min</div>'
+        + '</div>'
+        + '<div class="cb-pair-avatar" style="background:'+stB.color+'">'+escCb(stB.name[0])+'</div>'
+        + '<button onclick="cbProfViewMsgs(\''+p.id+'\')" style="background:transparent;border:1.5px solid var(--border);color:var(--muted);border-radius:7px;padding:3px 8px;cursor:pointer;font-size:.65rem;font-weight:700;font-family:Nunito,sans-serif;flex-shrink:0;">💬 Msgs</button>'
+        + '<button onclick="cbProfDeletePair(\''+p.id+'\')" style="background:var(--corall);border:1px solid #ffc5bd;color:var(--coral);border-radius:7px;padding:3px 7px;cursor:pointer;font-size:.65rem;font-weight:700;font-family:Nunito,sans-serif;flex-shrink:0;">✕</button>'
+        + '</div>';
+    });
+    pl.innerHTML = html;
+  });
+}
+
+function cbManualPairForm(sts) {
+  if (sts.length < 2) return '<div style="font-size:.76rem;color:var(--muted);">Pas assez d\'élèves.</div>';
+  var opts = sts.map(function(s){ return '<option value="'+s.id+'">'+escCb(s.name)+'</option>'; }).join('');
+  return '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:end;">'
+    + '<div><label style="font-size:.58rem;font-weight:800;color:var(--muted);display:block;margin-bottom:2px;">Élève A</label>'
+    + '<select id="cbManA">'+opts+'</select></div>'
+    + '<div><label style="font-size:.58rem;font-weight:800;color:var(--muted);display:block;margin-bottom:2px;">Élève B</label>'
+    + '<select id="cbManB">'+opts+'</select></div>'
+    + '<button onclick="cbProfCreateManual()" style="background:var(--mint);border:none;color:white;border-radius:8px;padding:8px 11px;cursor:pointer;font-weight:800;font-family:Nunito,sans-serif;font-size:.76rem;white-space:nowrap;">Créer ⚔</button>'
+    + '</div>';
+}
+
+function cbLoadAllPairs(cb) {
+  if (!window.fbDb) { cb([]); return; }
+  var wk = getWeekKey();
+  fbDb.ref(FB.combatPairs(wk)).once('value', function(snap) {
+    var pairs = snap.val() || {};
+    var list = Object.keys(pairs).map(function(id){ return Object.assign({id:id}, pairs[id]); });
+    cb(list);
+  }).catch(function(){ cb([]); });
+}
+
+window.cbToggleFeature = function(btn) {
+  var isOn = btn.classList.contains('on');
+  var newVal = !isOn;
+  btn.classList.toggle('on', newVal);
+  var desc = btn.nextElementSibling && btn.nextElementSibling.querySelector('div:last-child');
+  if (desc) desc.textContent = newVal ? 'Activés · Les élèves peuvent se battre' : 'Désactivés · Les élèves ne voient pas l\'onglet';
+  cbSetEnabled(newVal);
+  toast(newVal ? '⚔ Combats activés' : '🔒 Combats désactivés');
+};
+
+window.cbProfAutoMatch = function() {
+  var myUid = (typeof uid !== 'undefined') ? uid : null;
+  cbAutoMatch(myUid);
+  setTimeout(function(){ profDefiStats(document.querySelector('.pg.on')); }, 1000);
+};
+
+window.cbProfShowManual = function() {
+  var w = document.getElementById('cbManualWrap');
+  if (w) w.style.display = w.style.display === 'none' ? '' : 'none';
+};
+
+window.cbProfCreateManual = function() {
+  var a = document.getElementById('cbManA');
+  var b = document.getElementById('cbManB');
+  if (!a||!b||a.value===b.value) { toast('Choisis deux élèves différents.'); return; }
+  var myUid = (typeof uid !== 'undefined') ? uid : null;
+  cbCreateMatch(a.value, b.value, myUid);
+  toast('Combat créé !');
+  setTimeout(function(){ profDefiStats(document.querySelector('.pg.on')); }, 700);
+};
+
+window.cbProfDeletePair = function(matchId) {
+  if (!confirm('Supprimer ce combat et ses messages ?')) return;
+  cbDeleteMatch(matchId);
+  setTimeout(function(){ profDefiStats(document.querySelector('.pg.on')); }, 500);
+};
+
+window.cbProfViewMsgs = function(matchId) {
+  cbLoadMsgs(matchId, function(msgs) {
+    var h = '<div style="margin-bottom:12px;font-family:Lora,serif;font-size:1.1rem;font-weight:600;">💬 Messages du combat</div>';
+    if (!msgs.length) { h += '<div style="font-size:.78rem;color:var(--muted);">Aucun message.</div>'; }
+    msgs.forEach(function(m, i) {
+      var sts = LS.sts();
+      var sender = sts.find(function(s){return s.id===m.from;});
+      h += '<div class="cb-mod-msg">'
+        + '<div style="flex:1;">'
+        + '<div style="font-size:.62rem;font-weight:800;color:var(--muted);margin-bottom:2px;">'+(sender?escCb(sender.name):'?')+' · '+new Date(m.ts).toLocaleString('fr',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div>'
+        + '<div>'+escCb(m.text)+'</div>'
+        + '</div>'
+        + '<button class="cb-mod-del" onclick="cbProfDeleteMsg(\''+matchId+'\','+i+',this)">Suppr.</button>'
+        + '</div>';
+    });
+    h += '<button onclick="cMo()" style="margin-top:12px;width:100%;background:#111;border:none;color:white;border-radius:10px;padding:8px;cursor:pointer;font-weight:700;font-family:Nunito,sans-serif;">Fermer</button>';
+    sMo(h);
+  });
+};
+
+window.cbProfDeleteMsg = function(matchId, idx, btn) {
+  btn.textContent = '...';
+  btn.disabled = true;
+  cbDeleteMsg(matchId, idx, function() {
+    toast('Message supprimé');
+    cMo();
+    setTimeout(function(){ cbProfViewMsgs(matchId); }, 300);
+  });
+};
+
+// ── INTEGRATION DANS LA NAVIGATION ────────────────────────
+// Élèves : ajouter l'onglet ⚔ Combat
+// Prof   : remplacer la page Stats par Stats + Défis/Combats
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    if (typeof TAB_META === 'undefined') return;
+
+    // Élève — ajouter ⚔ Combat après Défis
+    if (TAB_META.eleve) {
+      var hasC = TAB_META.eleve.some(function(t){ return t.lbl === 'Combat'; });
+      if (!hasC) {
+        var defiIdx = TAB_META.eleve.findIndex(function(t){ return t.lbl === 'Défis'; });
+        var ins = defiIdx >= 0 ? defiIdx+1 : 3;
+        TAB_META.eleve.splice(ins, 0, {ico:'⚔', lbl:'Combat', col:'nc-coral'});
+      }
+    }
+
+    // Prof — ajouter Défis après Stats
+    if (TAB_META.prof) {
+      var hasPD = TAB_META.prof.some(function(t){ return t.lbl === 'Défis'; });
+      if (!hasPD) {
+        var statsIdx = TAB_META.prof.findIndex(function(t){ return t.lbl === 'Stats'; });
+        var ins2 = statsIdx >= 0 ? statsIdx+1 : 2;
+        TAB_META.prof.splice(ins2, 0, {ico:'⚔', lbl:'Défis', col:'nc-coral'});
+      }
+    }
+  }, 300);
+});
+
+// Patch rPage pour router vers les nouvelles pages
+var _origRPageCb = typeof rPage === 'function' ? rPage : null;
+rPage = function(r, i) {
+  _curIdx = i;
+  var main = document.getElementById('aM');
+  main.innerHTML = '';
+  var p = document.createElement('div');
+  p.className = 'pg on';
+  main.appendChild(p);
+  var meta = (typeof TAB_META !== 'undefined') ? TAB_META[r] : [];
+  if (meta && meta[i]) {
+    var tbPage = document.getElementById('tbPage');
+    if (tbPage) tbPage.textContent = meta[i].ico+' '+meta[i].lbl;
+  }
+  if (typeof buildNavGrid === 'function') buildNavGrid();
+
+  // Routing custom
+  var lbl = meta && meta[i] ? meta[i].lbl : '';
+  if (lbl === 'Combat' && r === 'eleve') { combatPageEleve(p); return; }
+  if (lbl === 'Défis'  && r === 'prof')  { profDefiStats(p);   return; }
+
+  // Fallback
+  if (_origRPageCb) _origRPageCb(r, i);
+};
+
+// ── MISE À JOUR SCORE EN TEMPS RÉEL ───────────────────────
+// Quand l'élève ajoute une session, on met à jour son score dans Firebase
+var _origGsStopCb = typeof gsStop === 'function' ? gsStop : null;
+gsStop = function() {
+  if (_origGsStopCb) _origGsStopCb();
+  cbUpdateMyScore();
+};
+var _origAddManTCb = typeof addManT === 'function' ? addManT : null;
+addManT = function() {
+  if (_origAddManTCb) _origAddManTCb();
+  setTimeout(cbUpdateMyScore, 500);
+};
+
+function cbUpdateMyScore() {
+  var myUid = (typeof uid !== 'undefined') ? uid : null;
+  if (!myUid || !window.fbDb) return;
+  cbLoadMyMatch(myUid, function(match) {
+    if (!match) return;
+    var d = LS.sd(myUid) || blank(myUid);
+    var wm = gStats(d).wm;
+    cbUpdateScore(match.id, match.amA, wm);
+  });
+}
+
+console.log('[Maestro] Combats hebdomadaires v1 chargé ✓ — élève, prof, Firebase, modération');
+})();
+</script>
+
+<!-- FIN PATCH COMBATS HEBDOMADAIRES v1 -->
 </body>
 </html>
