@@ -11224,5 +11224,220 @@ console.log('[Maestro] Correctif routing v1 chargé ✓ — routing par label, d
 </script>
 
 <!-- FIN PATCH CORRECTIF ROUTING v1 -->
+<!-- ════════════════════════════════════════════════════════════════
+     MAESTRO — PATCH CORRECTIF OUTILS v2
+     Coller APRÈS patch-routing-fix.html, avant </body>.
+     
+     Corrige :
+     1. Outils prof disparus → outilsProfPage reconstruite avec bons outils
+     2. Planning cours prof uniquement (plus visible par les élèves)
+     3. Métronome, accordeur, messages accessibles aux deux rôles
+     ════════════════════════════════════════════════════════════════ -->
+
+<script>
+(function(){
+'use strict';
+
+function waitReady(fn) {
+  if (typeof currentUser !== 'undefined' && typeof outilsPage === 'function') fn();
+  else setTimeout(function(){ waitReady(fn); }, 150);
+}
+
+waitReady(function() {
+
+// ── PAGE OUTILS PROF ──────────────────────────────────────
+// Reconstruit une page Outils pour le prof avec :
+// - Métronome, Accordeur, Messages (communs)
+// - Planning cours (prof uniquement)
+function outilsProfPage(el) {
+  var d = el;
+  d.innerHTML = '';
+
+  // Titre
+  var h = '<div style="margin-bottom:14px;">'
+    + '<div class="pt">Outils</div>'
+    + '<div class="ps" style="margin-bottom:0;">Outils pédagogiques</div>'
+    + '</div>';
+
+  // Outils partagés (mêmes que élève)
+  h += '<div class="sl" style="margin-bottom:8px;">INSTRUMENTS</div>';
+  h += '<div class="ga" id="outilsProfGrid" style="margin-bottom:16px;">';
+
+  // Métronome
+  h += '<div class="tool-tile" onclick="_goToolProf(\'metro\')">'
+    + '<div class="tool-ico">🎵</div>'
+    + '<div class="tool-name">Métronome</div>'
+    + '<div class="tool-desc">Battez la mesure</div>'
+    + '</div>';
+
+  // Accordeur
+  h += '<div class="tool-tile" onclick="_goToolProf(\'tuner\')">'
+    + '<div class="tool-ico">🎼</div>'
+    + '<div class="tool-name">Accordeur</div>'
+    + '<div class="tool-desc">Micro chromatique</div>'
+    + '</div>';
+
+  h += '</div>';
+
+  // Outils prof uniquement
+  h += '<div class="sl" style="margin-bottom:8px;">ADMINISTRATION</div>';
+  h += '<div class="ga" id="outilsProfAdminGrid">';
+
+  // Planning cours
+  h += '<div class="tool-tile" id="planToolBtnProf" onclick="window._PLAN && window._PLAN.openPlanApp()">'
+    + '<div class="tool-ico">📅</div>'
+    + '<div class="tool-name">Planning cours</div>'
+    + '<div class="tool-desc">Emploi du temps</div>'
+    + '</div>';
+
+  h += '</div>';
+
+  d.innerHTML = h;
+}
+
+// Helper pour router vers les outils depuis la page prof
+window._goToolProf = function(tool) {
+  // Trouver l'index de l'outil dans TAB_META.prof ou appeler directement
+  if (typeof rPage === 'function' && typeof TAB_META !== 'undefined') {
+    // Chercher l'outil dans les pages élève (métronome/accordeur sont dans Outils élève)
+    // On les affiche directement dans une modale
+    var main = document.getElementById('aM');
+    if (!main) return;
+    main.innerHTML = '';
+    var p = document.createElement('div');
+    p.className = 'pg on';
+    main.appendChild(p);
+    if (tool === 'metro' && typeof metroPage === 'function') {
+      metroPage(p);
+    } else if (tool === 'tuner' && typeof tunerPage === 'function') {
+      tunerPage(p);
+    }
+    // Mettre à jour le titre
+    var tbPage = document.getElementById('tbPage');
+    if (tbPage) tbPage.textContent = tool === 'metro' ? '🎵 Métronome' : '🎼 Accordeur';
+  }
+};
+
+// ── PAGE OUTILS ÉLÈVE — supprimer le planning ─────────────
+// On patch outilsPage pour retirer le bouton planning s'il existe
+var _origOutilsPage = typeof outilsPage === 'function' ? outilsPage : null;
+outilsPage = function(el) {
+  if (_origOutilsPage) _origOutilsPage(el);
+  // Supprimer le bouton Planning cours dans la page outils élève
+  setTimeout(function() {
+    var planBtns = el.querySelectorAll('#planToolBtn, [id^="planToolBtn"]');
+    planBtns.forEach(function(btn) { btn.remove(); });
+  }, 50);
+};
+
+// ── DÉSACTIVER wirePlanToNav pour les élèves ──────────────
+// Le patch conservatoire injecte le bouton dans TOUTES les .ga
+// On neutralise cette injection si l'utilisateur est élève
+var _origWirePlanToNav = window.wirePlanToNav;
+if (typeof _origWirePlanToNav === 'function' || true) {
+  window.wirePlanToNav = function() {
+    if (!currentUser || currentUser.role !== 'prof') return;
+    // Seulement pour le prof
+    var allGa = document.querySelectorAll('.ga');
+    allGa.forEach(function(grid) {
+      if (grid.querySelector('#planToolBtn')) return;
+      // Vérifier qu'on est bien dans la page outils prof
+      var pg = grid.closest('.pg');
+      if (!pg) return;
+      var tile = document.createElement('div');
+      tile.className = 'tool-tile';
+      tile.id = 'planToolBtn';
+      tile.innerHTML = '<div class="tool-ico">📅</div><div class="tool-name">Planning cours</div><div class="tool-desc">Emploi du temps hebdomadaire</div>';
+      tile.addEventListener('click', function(){ window._PLAN && window._PLAN.openPlanApp(); });
+      grid.insertBefore(tile, grid.firstChild);
+    });
+  };
+}
+
+// ── PATCH ROUTING — ajouter outilsProfPage ────────────────
+// Mettre à jour le routing pour la case 'Outils' du prof
+var _origRPageOutils = typeof rPage === 'function' ? rPage : null;
+rPage = function(r, i) {
+  _curIdx = i;
+  var main = document.getElementById('aM');
+  main.innerHTML = '';
+  var p = document.createElement('div');
+  p.className = 'pg on';
+  main.appendChild(p);
+
+  var meta = (typeof TAB_META !== 'undefined') ? TAB_META[r] : null;
+  var tab  = meta && meta[i] ? meta[i] : null;
+  var lbl  = tab ? tab.lbl : '';
+
+  var tbPage = document.getElementById('tbPage');
+  if (tbPage && tab) tbPage.textContent = tab.ico + ' ' + lbl;
+  if (typeof buildNavGrid === 'function') buildNavGrid();
+
+  // Routing élève
+  if (r === 'eleve') {
+    var fnMapE = {
+      'Tableau':     function(el){ if(typeof eleveDash==='function') eleveDash(el); },
+      'Session':     function(el){ if(typeof sessionGuidee==='function') sessionGuidee(el); },
+      'Défis':       function(el){ if(typeof defisPageV2==='function') defisPageV2(el); else if(typeof defisPage==='function') defisPage(el); },
+      'Combat':      function(el){ if(typeof combatPageEleve==='function') combatPageEleve(el); },
+      'Coffres':     function(el){ if(typeof chestsPage==='function') chestsPage(el); },
+      'Avatar':      function(el){ if(typeof avatarPage==='function') avatarPage(el); },
+      'Résumé':      function(el){ if(typeof weeklyRecapWithHistory==='function') weeklyRecapWithHistory(el); else if(typeof weeklyRecap==='function') weeklyRecap(el); },
+      'Badges':      function(el){ if(typeof badgesPageV2==='function') badgesPageV2(el); else if(typeof badgesPage==='function') badgesPage(el); },
+      'Classement':  function(el){ if(typeof classementPage==='function') classementPage(el); },
+      'Outils':      function(el){ if(typeof outilsPage==='function') outilsPage(el); },
+      'Messages':    function(el){ if(typeof msgPageEleve==='function') msgPageEleve(el, uid); },
+      'Aide':        function(el){ if(typeof aidePage==='function') aidePage(el); },
+    };
+    if (fnMapE[lbl]) { fnMapE[lbl](p); return; }
+  }
+
+  // Routing prof
+  if (r === 'prof') {
+    var fnMapP = {
+      'Classe':   function(el){ if(typeof classePage==='function') classePage(el); },
+      'Tâches':   function(el){ if(typeof tasksProfPage==='function') tasksProfPage(el); },
+      'Stats':    function(el){ if(typeof statsProfPage==='function') statsProfPage(el); else if(typeof statsPage==='function') statsPage(el); },
+      'Défis':    function(el){ if(typeof profDefiStats==='function') profDefiStats(el); },
+      'Outils':   outilsProfPage,   // ← notre nouvelle page
+      'Messages': function(el){ if(typeof msgPageProf==='function') msgPageProf(el); },
+      'Sync':     function(el){ if(typeof syncPage==='function') syncPage(el); },
+      'Aide':     function(el){ if(typeof aidePage==='function') aidePage(el); },
+    };
+    if (fnMapP[lbl]) { fnMapP[lbl](p); return; }
+  }
+
+  // Fallback
+  if (_origRPageOutils) _origRPageOutils(r, i);
+};
+
+// ── S'ASSURER QUE TAB_META PROF A L'ONGLET OUTILS ────────
+setTimeout(function() {
+  if (typeof TAB_META === 'undefined') return;
+  if (TAB_META.prof) {
+    var hasOutils = TAB_META.prof.some(function(t){ return t.lbl === 'Outils'; });
+    if (!hasOutils) {
+      TAB_META.prof.push({ico:'🔧', lbl:'Outils', col:'nc-gray'});
+    }
+  }
+  if (TAB_META.eleve) {
+    var hasOutilsE = TAB_META.eleve.some(function(t){ return t.lbl === 'Outils'; });
+    if (!hasOutilsE) {
+      // Trouver après Messages ou à la fin
+      var msgIdx = TAB_META.eleve.findIndex(function(t){ return t.lbl === 'Messages'; });
+      if (msgIdx > 0) TAB_META.eleve.splice(msgIdx, 0, {ico:'🔧', lbl:'Outils', col:'nc-gray'});
+      else TAB_META.eleve.push({ico:'🔧', lbl:'Outils', col:'nc-gray'});
+    }
+  }
+  if (typeof buildNavGrid === 'function') buildNavGrid();
+}, 500);
+
+console.log('[Maestro] Correctif Outils v2 ✓ — planning prof uniquement, métronome/accordeur partagés');
+
+}); // waitReady
+})();
+</script>
+
+<!-- FIN PATCH CORRECTIF OUTILS v2 -->
 </body>
 </html>
