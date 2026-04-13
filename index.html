@@ -10986,172 +10986,43 @@ console.log('[Maestro] Combats hebdomadaires v1 chargé ✓ — élève, prof, F
 
 <!-- FIN PATCH COMBATS HEBDOMADAIRES v1 -->
 <!-- ════════════════════════════════════════════════════════════════
-     MAESTRO — PATCH CORRECTIF ROUTING v1
-     Coller APRÈS patch-gamification.html et patch-combats.html.
+     MAESTRO — PATCH ROUTING FINAL v2
      
-     Corrige :
-     1. Routing par LABEL (plus jamais par index) → Coffres ne disparaît plus
-     2. Bug date Résumé (mar. 14 au lieu de lun. 13)
-     3. Onglet ⚔ Défis prof visible
+     ⚠️  REMPLACE les deux patches précédents :
+         - patch-routing-fix.html   → SUPPRIMER
+         - patch-outils-fix.html    → SUPPRIMER
+     
+     Coller à la place, juste après patch-combats.html.
+     
+     Ce patch :
+     - Route par LABEL (insensible aux changements d'index)
+     - Outils PROF : métronome + accordeur + planning (prof only)
+     - Outils ÉLÈVE : métronome + accordeur (sans planning)
+     - Fix date locale (bug "mar. 14" au lieu de "lun. 13")
      ════════════════════════════════════════════════════════════════ -->
 
 <script>
 (function(){
 'use strict';
 
-// ── ATTENDRE QUE L'APP SOIT PRÊTE ─────────────────────────
-function waitReady(fn) {
-  if (typeof rPage === 'function' && typeof TAB_META !== 'undefined') {
-    fn();
-  } else {
-    setTimeout(function(){ waitReady(fn); }, 100);
-  }
+// ── ATTENDRE QUE TOUT SOIT PRÊT ───────────────────────────
+var _ready = false;
+function onReady(fn) {
+  if (_ready) { fn(); return; }
+  var t = setInterval(function() {
+    if (typeof TAB_META !== 'undefined' &&
+        typeof classePage === 'function' &&
+        typeof outilsPage === 'function') {
+      clearInterval(t);
+      _ready = true;
+      fn();
+    }
+  }, 80);
 }
 
-waitReady(function() {
-
-// ── ROUTING ROBUSTE PAR LABEL ─────────────────────────────
-// Remplace TOUS les patches de rPage par une version qui route par label
-// et non par index → insensible aux ajouts/suppressions d'onglets
-rPage = function(r, i) {
-  _curIdx = i;
-  var main = document.getElementById('aM');
-  main.innerHTML = '';
-  var p = document.createElement('div');
-  p.className = 'pg on';
-  main.appendChild(p);
-
-  var meta = (typeof TAB_META !== 'undefined') ? TAB_META[r] : null;
-  var tab  = meta && meta[i] ? meta[i] : null;
-  var lbl  = tab ? tab.lbl : '';
-
-  // Mettre à jour le titre de page
-  var tbPage = document.getElementById('tbPage');
-  if (tbPage && tab) tbPage.textContent = tab.ico + ' ' + lbl;
-
-  // Reconstruire la nav grid
-  if (typeof buildNavGrid === 'function') buildNavGrid();
-
-  // ── ROUTING ÉLÈVE ────────────────────────────────────
-  if (r === 'eleve') {
-    switch (lbl) {
-      case 'Tableau':
-        if (typeof eleveDash === 'function') { eleveDash(p); return; }
-        break;
-      case 'Session':
-        if (typeof sessionGuidee === 'function') { sessionGuidee(p); return; }
-        break;
-      case 'Défis':
-        // Patch gamification v2 fournit defisPageV2
-        if (typeof defisPageV2 === 'function') { defisPageV2(p); return; }
-        if (typeof defisPage   === 'function') { defisPage(p);   return; }
-        break;
-      case 'Combat':
-        if (typeof combatPageEleve === 'function') { combatPageEleve(p); return; }
-        break;
-      case 'Coffres':
-        if (typeof chestsPage === 'function') { chestsPage(p); return; }
-        break;
-      case 'Avatar':
-        if (typeof avatarPage === 'function') { avatarPage(p); return; }
-        break;
-      case 'Résumé':
-        if (typeof weeklyRecapWithHistory === 'function') { weeklyRecapWithHistory(p); return; }
-        if (typeof weeklyRecap            === 'function') { weeklyRecap(p);            return; }
-        break;
-      case 'Badges':
-        // Patch gamification v2 fournit badgesPageV2
-        if (typeof badgesPageV2 === 'function') { badgesPageV2(p); return; }
-        if (typeof badgesPage   === 'function') { badgesPage(p);   return; }
-        break;
-      case 'Classement':
-        if (typeof classementPage === 'function') { classementPage(p); return; }
-        break;
-      case 'Outils':
-        if (typeof outilsPage === 'function') { outilsPage(p); return; }
-        break;
-      case 'Messages':
-        if (typeof msgPageEleve === 'function') { msgPageEleve(p, uid); return; }
-        break;
-      case 'Aide':
-        if (typeof aidePage === 'function') { aidePage(p); return; }
-        break;
-    }
-  }
-
-  // ── ROUTING PROF ─────────────────────────────────────
-  if (r === 'prof') {
-    switch (lbl) {
-      case 'Classe':
-        if (typeof classePage === 'function') { classePage(p); return; }
-        break;
-      case 'Tâches':
-        if (typeof tasksProfPage === 'function') { tasksProfPage(p); return; }
-        break;
-      case 'Stats':
-        if (typeof statsProfPage === 'function') { statsProfPage(p); return; }
-        if (typeof statsPage     === 'function') { statsPage(p);     return; }
-        break;
-      case 'Défis':
-        // Patch combats fournit profDefiStats
-        if (typeof profDefiStats === 'function') { profDefiStats(p); return; }
-        break;
-      case 'Outils':
-        if (typeof outilsProfPage === 'function') { outilsProfPage(p); return; }
-        if (typeof outilsPage     === 'function') { outilsPage(p);     return; }
-        break;
-      case 'Messages':
-        if (typeof msgPageProf === 'function') { msgPageProf(p); return; }
-        break;
-      case 'Sync':
-        if (typeof syncPage === 'function') { syncPage(p); return; }
-        break;
-      case 'Aide':
-        if (typeof aidePage === 'function') { aidePage(p); return; }
-        break;
-    }
-  }
-
-  // ── FALLBACK : appeler la version d'origine (avant tous les patches)
-  // On reconstruit manuellement le comportement original de rPage
-  // en appellant directement les fonctions par leur nom conventionnel
-  var fnMap = {
-    eleve: [eleveDash, sessionGuidee, defisPage, chestsPage, avatarPage,
-            weeklyRecap, badgesPage, outilsPage,
-            function(el){ if(typeof msgPageEleve==='function') msgPageEleve(el,uid); },
-            aidePage],
-    prof:  [classePage, tasksProfPage, statsProfPage, outilsProfPage,
-            function(el){ if(typeof msgPageProf==='function') msgPageProf(el); },
-            syncPage, aidePage]
-  };
-  var fns = fnMap[r];
-  if (fns && fns[i] && typeof fns[i] === 'function') {
-    try { fns[i](p); } catch(e) { console.warn('rPage fallback error', lbl, e); }
-  }
-};
-
-// ── CORRECTIF BUG DATE RÉSUMÉ ─────────────────────────────
-// tday() retourne la date locale correcte contrairement à new Date().toISOString()
-// Le bug venait de weeklyRecapWithHistory qui utilise new Date() pour les labels
-// On patche la fonction getWeekDays utilisée dans le résumé si elle existe
-var _origWeeklyRecap = typeof weeklyRecapWithHistory === 'function' ? weeklyRecapWithHistory : null;
-if (_origWeeklyRecap) {
-  weeklyRecapWithHistory = function(el) {
-    // Patch de Date.prototype.toISOString temporairement pour forcer le fuseau local
-    // Plus simple : on s'assure que tday() est utilisé comme référence
-    _origWeeklyRecap(el);
-    // Corriger les labels de date affichés incorrectement
-    // On cherche les éléments qui afficheraient "mar. 14 avr." et on vérifie
-    // (Les fonctions internes de Maestro utilisent leurs propres calculs, pas patchables
-    //  directement — le vrai fix est de s'assurer que new Date() donne la bonne date locale)
-  };
-}
-
-// Correctif global : s'assurer que tday() retourne bien la date locale (pas UTC)
-// tday() dans Maestro fait new Date().toISOString().slice(0,10) → bug si UTC décalé
-// On redéfinit tday pour utiliser l'heure locale
+// ── FIX DATE LOCALE ───────────────────────────────────────
+// tday() utilise toISOString() qui est UTC → décalage +1h en France
 if (typeof tday === 'function') {
-  var _origTday = tday;
   tday = function() {
     var d = new Date();
     var y = d.getFullYear();
@@ -11161,16 +11032,115 @@ if (typeof tday === 'function') {
   };
 }
 
-// ── S'ASSURER QUE LES ONGLETS SONT BIEN AJOUTÉS ──────────
-// (les patches gamification et combats ajoutent déjà ces onglets via DOMContentLoaded,
-//  mais si ce patch charge après, on vérifie et complète)
-setTimeout(function() {
-  if (typeof TAB_META === 'undefined') return;
+// ── PAGE OUTILS PROF ──────────────────────────────────────
+function outilsProfPage(el) {
+  el.innerHTML = '<div style="margin-bottom:14px;">'
+    + '<div class="pt">Outils</div>'
+    + '<div class="ps" style="margin-bottom:0;">Outils pédagogiques</div>'
+    + '</div>'
+    // Outils communs
+    + '<div class="sl" style="margin-bottom:8px;">INSTRUMENTS</div>'
+    + '<div class="ga" style="margin-bottom:16px;">'
+    + '<div class="tool-tile" onclick="_profTool(\'metro\')">'
+    + '<div class="tool-ico">🎵</div>'
+    + '<div class="tool-name">Métronome</div>'
+    + '<div class="tool-desc">Battez la mesure</div>'
+    + '</div>'
+    + '<div class="tool-tile" onclick="_profTool(\'tuner\')">'
+    + '<div class="tool-ico">🎼</div>'
+    + '<div class="tool-name">Accordeur</div>'
+    + '<div class="tool-desc">Micro chromatique</div>'
+    + '</div>'
+    + '</div>'
+    // Planning (prof uniquement)
+    + '<div class="sl" style="margin-bottom:8px;">ADMINISTRATION</div>'
+    + '<div class="ga">'
+    + '<div class="tool-tile" onclick="window._PLAN && window._PLAN.openPlanApp()">'
+    + '<div class="tool-ico">📅</div>'
+    + '<div class="tool-name">Planning cours</div>'
+    + '<div class="tool-desc">Emploi du temps</div>'
+    + '</div>'
+    + '</div>';
+}
 
-  // ÉLÈVE — ordre souhaité
-  var eleveOrder = [
+window._profTool = function(tool) {
+  var main = document.getElementById('aM');
+  if (!main) return;
+  main.innerHTML = '';
+  var p = document.createElement('div');
+  p.className = 'pg on';
+  main.appendChild(p);
+  var tbPage = document.getElementById('tbPage');
+  if (tool === 'metro') {
+    if (tbPage) tbPage.textContent = '🎵 Métronome';
+    if (typeof metroPage === 'function') metroPage(p);
+  } else {
+    if (tbPage) tbPage.textContent = '🎼 Accordeur';
+    if (typeof tunerPage === 'function') tunerPage(p);
+  }
+};
+
+// ── ROUTING CENTRAL PAR LABEL ─────────────────────────────
+onReady(function() {
+
+  // Maps label → fonction pour chaque rôle
+  var ROUTE_ELEVE = {
+    'Tableau':    function(p){ eleveDash(p); },
+    'Session':    function(p){ if(typeof sessionGuidee==='function') sessionGuidee(p); },
+    'Défis':      function(p){ if(typeof defisPageV2==='function') defisPageV2(p); else if(typeof defisPage==='function') defisPage(p); },
+    'Combat':     function(p){ if(typeof combatPageEleve==='function') combatPageEleve(p); },
+    'Coffres':    function(p){ if(typeof chestsPage==='function') chestsPage(p); },
+    'Avatar':     function(p){ if(typeof avatarPage==='function') avatarPage(p); },
+    'Résumé':     function(p){ if(typeof weeklyRecapWithHistory==='function') weeklyRecapWithHistory(p); else if(typeof weeklyRecap==='function') weeklyRecap(p); },
+    'Badges':     function(p){ if(typeof badgesPageV2==='function') badgesPageV2(p); else if(typeof badgesPage==='function') badgesPage(p); },
+    'Classement': function(p){ if(typeof classementPage==='function') classementPage(p); },
+    'Outils':     function(p){ outilsPage(p); },  // page outils élève originale (sans planning)
+    'Messages':   function(p){ if(typeof msgPageEleve==='function') msgPageEleve(p, uid); },
+    'Aide':       function(p){ if(typeof aidePage==='function') aidePage(p); },
+  };
+
+  var ROUTE_PROF = {
+    'Classe':   function(p){ classePage(p); },
+    'Tâches':   function(p){ if(typeof tasksProfPage==='function') tasksProfPage(p); },
+    'Stats':    function(p){ if(typeof statsProfPage==='function') statsProfPage(p); else if(typeof statsPage==='function') statsPage(p); },
+    'Défis':    function(p){ if(typeof profDefiStats==='function') profDefiStats(p); },
+    'Outils':   outilsProfPage,  // notre page outils prof avec planning
+    'Messages': function(p){ if(typeof msgPageProf==='function') msgPageProf(p); },
+    'Sync':     function(p){ if(typeof syncPage==='function') syncPage(p); },
+    'Aide':     function(p){ if(typeof aidePage==='function') aidePage(p); },
+  };
+
+  // Remplace rPage une seule fois, définitivement
+  rPage = function(r, i) {
+    _curIdx = i;
+    var main = document.getElementById('aM');
+    if (!main) return;
+    main.innerHTML = '';
+    var p = document.createElement('div');
+    p.className = 'pg on';
+    main.appendChild(p);
+
+    var meta = TAB_META[r] || [];
+    var tab  = meta[i];
+    var lbl  = tab ? tab.lbl : '';
+
+    var tbPage = document.getElementById('tbPage');
+    if (tbPage && tab) tbPage.textContent = tab.ico + ' ' + lbl;
+    if (typeof buildNavGrid === 'function') buildNavGrid();
+
+    var routes = r === 'prof' ? ROUTE_PROF : ROUTE_ELEVE;
+    if (routes[lbl]) {
+      try { routes[lbl](p); } catch(e) { console.error('[rPage]', lbl, e); }
+    } else {
+      p.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.8rem;">Page "' + lbl + '" introuvable.</div>';
+    }
+  };
+
+  // ── S'ASSURER QUE TAB_META EST COMPLET ─────────────────
+  // Onglets élève attendus
+  var eleveWanted = [
     {ico:'🏠', lbl:'Tableau',    col:'nc-ind'},
-    {ico:'▶', lbl:'Session',    col:'nc-mint'},
+    {ico:'▶',  lbl:'Session',   col:'nc-mint'},
     {ico:'🎯', lbl:'Défis',      col:'nc-vio'},
     {ico:'⚔',  lbl:'Combat',    col:'nc-coral'},
     {ico:'🎁', lbl:'Coffres',   col:'nc-amb'},
@@ -11178,266 +11148,59 @@ setTimeout(function() {
     {ico:'📈', lbl:'Résumé',    col:'nc-mint'},
     {ico:'🏅', lbl:'Badges',    col:'nc-amb'},
     {ico:'🏆', lbl:'Classement',col:'nc-amb'},
-    {ico:'🔧', lbl:'Outils',    col:'nc-gray'},
+    {ico:'🔧', lbl:'Outils',    col:'nc-dark'},
     {ico:'💬', lbl:'Messages',  col:'nc-ind'},
-    {ico:'❓', lbl:'Aide',      col:'nc-gray'},
+    {ico:'❓', lbl:'Aide',      col:'nc-dark'},
   ];
-
   if (TAB_META.eleve) {
-    eleveOrder.forEach(function(wanted) {
+    eleveWanted.forEach(function(wanted, wIdx) {
       var exists = TAB_META.eleve.some(function(t){ return t.lbl === wanted.lbl; });
       if (!exists) {
-        // Insérer à la bonne position
-        var targetIdx = eleveOrder.indexOf(wanted);
-        // Trouver l'onglet précédent pour s'insérer après
-        var insertAfter = -1;
-        for (var k = targetIdx - 1; k >= 0; k--) {
-          var prevLbl = eleveOrder[k].lbl;
-          var prevIdx = TAB_META.eleve.findIndex(function(t){ return t.lbl === prevLbl; });
-          if (prevIdx >= 0) { insertAfter = prevIdx; break; }
-        }
-        TAB_META.eleve.splice(insertAfter + 1, 0, wanted);
+        // Insérer après le précédent onglet voulu
+        var insertAfterLbl = wIdx > 0 ? eleveWanted[wIdx-1].lbl : null;
+        var pos = insertAfterLbl
+          ? TAB_META.eleve.findIndex(function(t){ return t.lbl === insertAfterLbl; })
+          : -1;
+        TAB_META.eleve.splice(pos + 1, 0, wanted);
       }
     });
   }
 
-  // PROF — s'assurer que Défis est présent
+  // Onglets prof attendus
+  var profWanted = [
+    {ico:'👥', lbl:'Classe',   col:'nc-ind'},
+    {ico:'✅', lbl:'Tâches',   col:'nc-mint'},
+    {ico:'📊', lbl:'Stats',    col:'nc-sky'},
+    {ico:'⚔',  lbl:'Défis',   col:'nc-coral'},
+    {ico:'🔧', lbl:'Outils',  col:'nc-dark'},
+    {ico:'💬', lbl:'Messages',col:'nc-ind'},
+    {ico:'🔄', lbl:'Sync',    col:'nc-amb'},
+    {ico:'❓', lbl:'Aide',    col:'nc-dark'},
+  ];
   if (TAB_META.prof) {
-    var hasDefis = TAB_META.prof.some(function(t){ return t.lbl === 'Défis'; });
-    if (!hasDefis) {
-      var statsIdx = TAB_META.prof.findIndex(function(t){ return t.lbl === 'Stats'; });
-      var ins = statsIdx >= 0 ? statsIdx + 1 : 2;
-      TAB_META.prof.splice(ins, 0, {ico:'⚔', lbl:'Défis', col:'nc-coral'});
-    }
-  }
-
-  // Reconstruire la nav si on est sur une page
-  if (typeof buildNavGrid === 'function') buildNavGrid();
-
-}, 400);
-
-console.log('[Maestro] Correctif routing v1 chargé ✓ — routing par label, date locale, onglets complets');
-
-}); // waitReady
-
-})();
-</script>
-
-<!-- FIN PATCH CORRECTIF ROUTING v1 -->
-<!-- ════════════════════════════════════════════════════════════════
-     MAESTRO — PATCH CORRECTIF OUTILS v2
-     Coller APRÈS patch-routing-fix.html, avant </body>.
-     
-     Corrige :
-     1. Outils prof disparus → outilsProfPage reconstruite avec bons outils
-     2. Planning cours prof uniquement (plus visible par les élèves)
-     3. Métronome, accordeur, messages accessibles aux deux rôles
-     ════════════════════════════════════════════════════════════════ -->
-
-<script>
-(function(){
-'use strict';
-
-function waitReady(fn) {
-  if (typeof currentUser !== 'undefined' && typeof outilsPage === 'function') fn();
-  else setTimeout(function(){ waitReady(fn); }, 150);
-}
-
-waitReady(function() {
-
-// ── PAGE OUTILS PROF ──────────────────────────────────────
-// Reconstruit une page Outils pour le prof avec :
-// - Métronome, Accordeur, Messages (communs)
-// - Planning cours (prof uniquement)
-function outilsProfPage(el) {
-  var d = el;
-  d.innerHTML = '';
-
-  // Titre
-  var h = '<div style="margin-bottom:14px;">'
-    + '<div class="pt">Outils</div>'
-    + '<div class="ps" style="margin-bottom:0;">Outils pédagogiques</div>'
-    + '</div>';
-
-  // Outils partagés (mêmes que élève)
-  h += '<div class="sl" style="margin-bottom:8px;">INSTRUMENTS</div>';
-  h += '<div class="ga" id="outilsProfGrid" style="margin-bottom:16px;">';
-
-  // Métronome
-  h += '<div class="tool-tile" onclick="_goToolProf(\'metro\')">'
-    + '<div class="tool-ico">🎵</div>'
-    + '<div class="tool-name">Métronome</div>'
-    + '<div class="tool-desc">Battez la mesure</div>'
-    + '</div>';
-
-  // Accordeur
-  h += '<div class="tool-tile" onclick="_goToolProf(\'tuner\')">'
-    + '<div class="tool-ico">🎼</div>'
-    + '<div class="tool-name">Accordeur</div>'
-    + '<div class="tool-desc">Micro chromatique</div>'
-    + '</div>';
-
-  h += '</div>';
-
-  // Outils prof uniquement
-  h += '<div class="sl" style="margin-bottom:8px;">ADMINISTRATION</div>';
-  h += '<div class="ga" id="outilsProfAdminGrid">';
-
-  // Planning cours
-  h += '<div class="tool-tile" id="planToolBtnProf" onclick="window._PLAN && window._PLAN.openPlanApp()">'
-    + '<div class="tool-ico">📅</div>'
-    + '<div class="tool-name">Planning cours</div>'
-    + '<div class="tool-desc">Emploi du temps</div>'
-    + '</div>';
-
-  h += '</div>';
-
-  d.innerHTML = h;
-}
-
-// Helper pour router vers les outils depuis la page prof
-window._goToolProf = function(tool) {
-  // Trouver l'index de l'outil dans TAB_META.prof ou appeler directement
-  if (typeof rPage === 'function' && typeof TAB_META !== 'undefined') {
-    // Chercher l'outil dans les pages élève (métronome/accordeur sont dans Outils élève)
-    // On les affiche directement dans une modale
-    var main = document.getElementById('aM');
-    if (!main) return;
-    main.innerHTML = '';
-    var p = document.createElement('div');
-    p.className = 'pg on';
-    main.appendChild(p);
-    if (tool === 'metro' && typeof metroPage === 'function') {
-      metroPage(p);
-    } else if (tool === 'tuner' && typeof tunerPage === 'function') {
-      tunerPage(p);
-    }
-    // Mettre à jour le titre
-    var tbPage = document.getElementById('tbPage');
-    if (tbPage) tbPage.textContent = tool === 'metro' ? '🎵 Métronome' : '🎼 Accordeur';
-  }
-};
-
-// ── PAGE OUTILS ÉLÈVE — supprimer le planning ─────────────
-// On patch outilsPage pour retirer le bouton planning s'il existe
-var _origOutilsPage = typeof outilsPage === 'function' ? outilsPage : null;
-outilsPage = function(el) {
-  if (_origOutilsPage) _origOutilsPage(el);
-  // Supprimer le bouton Planning cours dans la page outils élève
-  setTimeout(function() {
-    var planBtns = el.querySelectorAll('#planToolBtn, [id^="planToolBtn"]');
-    planBtns.forEach(function(btn) { btn.remove(); });
-  }, 50);
-};
-
-// ── DÉSACTIVER wirePlanToNav pour les élèves ──────────────
-// Le patch conservatoire injecte le bouton dans TOUTES les .ga
-// On neutralise cette injection si l'utilisateur est élève
-var _origWirePlanToNav = window.wirePlanToNav;
-if (typeof _origWirePlanToNav === 'function' || true) {
-  window.wirePlanToNav = function() {
-    if (!currentUser || currentUser.role !== 'prof') return;
-    // Seulement pour le prof
-    var allGa = document.querySelectorAll('.ga');
-    allGa.forEach(function(grid) {
-      if (grid.querySelector('#planToolBtn')) return;
-      // Vérifier qu'on est bien dans la page outils prof
-      var pg = grid.closest('.pg');
-      if (!pg) return;
-      var tile = document.createElement('div');
-      tile.className = 'tool-tile';
-      tile.id = 'planToolBtn';
-      tile.innerHTML = '<div class="tool-ico">📅</div><div class="tool-name">Planning cours</div><div class="tool-desc">Emploi du temps hebdomadaire</div>';
-      tile.addEventListener('click', function(){ window._PLAN && window._PLAN.openPlanApp(); });
-      grid.insertBefore(tile, grid.firstChild);
+    profWanted.forEach(function(wanted, wIdx) {
+      var exists = TAB_META.prof.some(function(t){ return t.lbl === wanted.lbl; });
+      if (!exists) {
+        var insertAfterLbl = wIdx > 0 ? profWanted[wIdx-1].lbl : null;
+        var pos = insertAfterLbl
+          ? TAB_META.prof.findIndex(function(t){ return t.lbl === insertAfterLbl; })
+          : -1;
+        TAB_META.prof.splice(pos + 1, 0, wanted);
+      }
     });
-  };
-}
-
-// ── PATCH ROUTING — ajouter outilsProfPage ────────────────
-// Mettre à jour le routing pour la case 'Outils' du prof
-var _origRPageOutils = typeof rPage === 'function' ? rPage : null;
-rPage = function(r, i) {
-  _curIdx = i;
-  var main = document.getElementById('aM');
-  main.innerHTML = '';
-  var p = document.createElement('div');
-  p.className = 'pg on';
-  main.appendChild(p);
-
-  var meta = (typeof TAB_META !== 'undefined') ? TAB_META[r] : null;
-  var tab  = meta && meta[i] ? meta[i] : null;
-  var lbl  = tab ? tab.lbl : '';
-
-  var tbPage = document.getElementById('tbPage');
-  if (tbPage && tab) tbPage.textContent = tab.ico + ' ' + lbl;
-  if (typeof buildNavGrid === 'function') buildNavGrid();
-
-  // Routing élève
-  if (r === 'eleve') {
-    var fnMapE = {
-      'Tableau':     function(el){ if(typeof eleveDash==='function') eleveDash(el); },
-      'Session':     function(el){ if(typeof sessionGuidee==='function') sessionGuidee(el); },
-      'Défis':       function(el){ if(typeof defisPageV2==='function') defisPageV2(el); else if(typeof defisPage==='function') defisPage(el); },
-      'Combat':      function(el){ if(typeof combatPageEleve==='function') combatPageEleve(el); },
-      'Coffres':     function(el){ if(typeof chestsPage==='function') chestsPage(el); },
-      'Avatar':      function(el){ if(typeof avatarPage==='function') avatarPage(el); },
-      'Résumé':      function(el){ if(typeof weeklyRecapWithHistory==='function') weeklyRecapWithHistory(el); else if(typeof weeklyRecap==='function') weeklyRecap(el); },
-      'Badges':      function(el){ if(typeof badgesPageV2==='function') badgesPageV2(el); else if(typeof badgesPage==='function') badgesPage(el); },
-      'Classement':  function(el){ if(typeof classementPage==='function') classementPage(el); },
-      'Outils':      function(el){ if(typeof outilsPage==='function') outilsPage(el); },
-      'Messages':    function(el){ if(typeof msgPageEleve==='function') msgPageEleve(el, uid); },
-      'Aide':        function(el){ if(typeof aidePage==='function') aidePage(el); },
-    };
-    if (fnMapE[lbl]) { fnMapE[lbl](p); return; }
   }
 
-  // Routing prof
-  if (r === 'prof') {
-    var fnMapP = {
-      'Classe':   function(el){ if(typeof classePage==='function') classePage(el); },
-      'Tâches':   function(el){ if(typeof tasksProfPage==='function') tasksProfPage(el); },
-      'Stats':    function(el){ if(typeof statsProfPage==='function') statsProfPage(el); else if(typeof statsPage==='function') statsPage(el); },
-      'Défis':    function(el){ if(typeof profDefiStats==='function') profDefiStats(el); },
-      'Outils':   outilsProfPage,   // ← notre nouvelle page
-      'Messages': function(el){ if(typeof msgPageProf==='function') msgPageProf(el); },
-      'Sync':     function(el){ if(typeof syncPage==='function') syncPage(el); },
-      'Aide':     function(el){ if(typeof aidePage==='function') aidePage(el); },
-    };
-    if (fnMapP[lbl]) { fnMapP[lbl](p); return; }
+  // Reconstruire la nav si on est connecté
+  if (typeof buildNavGrid === 'function') {
+    setTimeout(buildNavGrid, 100);
   }
 
-  // Fallback
-  if (_origRPageOutils) _origRPageOutils(r, i);
-};
+  console.log('[Maestro] Routing final v2 ✓ — label-based, outils séparés, date locale');
+});
 
-// ── S'ASSURER QUE TAB_META PROF A L'ONGLET OUTILS ────────
-setTimeout(function() {
-  if (typeof TAB_META === 'undefined') return;
-  if (TAB_META.prof) {
-    var hasOutils = TAB_META.prof.some(function(t){ return t.lbl === 'Outils'; });
-    if (!hasOutils) {
-      TAB_META.prof.push({ico:'🔧', lbl:'Outils', col:'nc-gray'});
-    }
-  }
-  if (TAB_META.eleve) {
-    var hasOutilsE = TAB_META.eleve.some(function(t){ return t.lbl === 'Outils'; });
-    if (!hasOutilsE) {
-      // Trouver après Messages ou à la fin
-      var msgIdx = TAB_META.eleve.findIndex(function(t){ return t.lbl === 'Messages'; });
-      if (msgIdx > 0) TAB_META.eleve.splice(msgIdx, 0, {ico:'🔧', lbl:'Outils', col:'nc-gray'});
-      else TAB_META.eleve.push({ico:'🔧', lbl:'Outils', col:'nc-gray'});
-    }
-  }
-  if (typeof buildNavGrid === 'function') buildNavGrid();
-}, 500);
-
-console.log('[Maestro] Correctif Outils v2 ✓ — planning prof uniquement, métronome/accordeur partagés');
-
-}); // waitReady
 })();
 </script>
 
-<!-- FIN PATCH CORRECTIF OUTILS v2 -->
+<!-- FIN PATCH ROUTING FINAL v2 -->
 </body>
 </html>
